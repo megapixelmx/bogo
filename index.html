@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bogo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            app: {
+              bg: '#090d10',
+              card: '#12181f',
+              surface: '#18202a',
+              border: 'rgba(255, 255, 255, 0.08)',
+              accent: '#10b981',
+              glow: 'rgba(16, 185, 129, 0.15)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body {
+      background-color: #090d10;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .custom-card {
+      background: #12181f;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .custom-card-hover:hover {
+      transform: translateY(-2px);
+      background: #18202a;
+    }
+    .hero-gradient {
+      background: linear-gradient(135deg, #141f1a 0%, #0d1519 100%);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between max-w-6xl mx-auto relative shadow-2xl overflow-x-hidden border-x border-app-border/20" onclick="closeAllMenus(event)">
+
+  <header class="sticky top-0 z-30 bg-app-bg/90 backdrop-blur-md px-8 py-4 flex items-center justify-between border-b border-app-border/40">
+    <div class="flex items-center gap-3">
+      <img src="img/logo.jpg" onerror="this.onerror=null; this.src='https://placehold.co/100x100/10b981/000000?text=Bogo';" alt="Bogo Logo" class="w-10 h-10 rounded-xl object-cover border border-app-border shadow-sm">
+      <span class="text-xl font-bold tracking-tight text-white">Bogo</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="openNewProjectModal()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-emerald-400 hover:bg-emerald-500/10 transition">
+        <i data-lucide="plus" class="w-5 h-5"></i>
+      </button>
+      <button onclick="triggerFileUpload()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 hover:bg-app-border transition">
+        <i data-lucide="search" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 px-8 pt-6 pb-12 space-y-8">
+    <div>
+      <p class="text-sm text-gray-400 font-medium">Hola, Creador 👋</p>
+      <h1 class="text-2xl font-bold text-white tracking-tight mt-0.5">Gestiona tus Proyectos</h1>
+    </div>
+
+    <section class="hero-gradient rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="flex items-center gap-5 relative z-10">
+        <div class="relative flex-shrink-0">
+          <img src="img/logo.jpg" onerror="this.onerror=null; this.src='https://placehold.co/120x120/10b981/000000?text=Bogo';" alt="Bogo Big Logo" class="w-20 h-20 rounded-2xl object-cover border border-emerald-500/30 shadow-md">
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="inline-block text-xs font-semibold tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-1.5">STUDIO V1.0</span>
+          <h2 class="text-xl font-bold text-white leading-snug truncate">Crea un Nuevo Proyecto</h2>
+          <p class="text-sm text-gray-400 mt-0.5">Diseña y exporta en .gb</p>
+        </div>
+      </div>
+      <div class="relative z-10 w-full md:w-auto flex justify-end">
+        <button onclick="openNewProjectModal()" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-sm px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-95">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span>Crear Proyecto</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input type="file" id="gbFileInput" accept=".gb,.zip" class="hidden" onchange="handleFileUpload(event)">
+
+      <button onclick="triggerFileUpload()" class="custom-card custom-card-hover p-5 rounded-2xl flex flex-col items-center justify-center text-center transition">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3">
+          <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+        </div>
+        <span class="text-sm font-semibold text-gray-200">Subir .GB</span>
+        <span class="text-xs text-gray-500 mt-0.5">Importar</span>
+      </button>
+
+      <button onclick="openNewProjectModalWithCategory('Animacion')" class="custom-card custom-card-hover p-5 rounded-2xl flex flex-col items-center justify-center text-center transition">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+          <i data-lucide="video" class="w-6 h-6"></i>
+        </div>
+        <span class="text-sm font-semibold text-gray-200">Animación</span>
+        <span class="text-xs text-gray-500 mt-0.5">Secuencia</span>
+      </button>
+
+      <button onclick="openNewProjectModalWithCategory('Pixel Art')" class="custom-card custom-card-hover p-5 rounded-2xl flex flex-col items-center justify-center text-center transition">
+        <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-3">
+          <i data-lucide="image" class="w-6 h-6"></i>
+        </div>
+        <span class="text-sm font-semibold text-gray-200">Pixel Art</span>
+        <span class="text-xs text-gray-500 mt-0.5">Editor</span>
+      </button>
+    </section>
+
+    <section class="space-y-4 pt-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white tracking-wide">Proyectos Creados</h3>
+        <span id="projectCount" class="text-xs text-gray-400 bg-app-surface px-3 py-1 rounded-full border border-app-border">0</span>
+      </div>
+
+      <div id="projectsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div id="emptyState" class="col-span-full custom-card p-10 rounded-2xl border border-dashed border-app-border flex flex-col items-center justify-center text-center">
+          <div class="w-14 h-14 rounded-2xl bg-app-surface border border-app-border flex items-center justify-center text-gray-500 mb-3">
+            <i data-lucide="folder-open" class="w-7 h-7"></i>
+          </div>
+          <p class="text-sm font-semibold text-gray-300">No hay proyectos creados aún</p>
+          <p class="text-xs text-gray-500 mt-1 max-w-[260px]">Empieza creando un diseño o importando un archivo .gb</p>
+          <button onclick="openNewProjectModal()" class="mt-5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-4 py-2 rounded-xl border border-emerald-500/20 transition">
+            Crear Proyecto
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="newProjectModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="custom-card w-full max-w-md rounded-2xl p-6 border border-app-border shadow-2xl relative">
+      <div class="flex items-center justify-between pb-4 border-b border-app-border mb-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-400"></i>
+          <span>Nuevo Proyecto Bogo</span>
+        </h3>
+        <button onclick="closeNewProjectModal()" class="text-gray-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5">Nombre del Proyecto</label>
+          <input type="text" id="projectNameInput" placeholder="Mi_Proyecto" class="w-full bg-app-surface border border-app-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5">Categoría</label>
+          <select id="projectCategoryInput" onchange="renderCategoryOptions()" class="w-full bg-app-surface border border-app-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+            <option value="Dibujo">Dibujo</option>
+            <option value="Pixel Art">Pixel Art</option>
+            <option value="Animacion">Animación</option>
+          </select>
+        </div>
+
+        <div id="dynamicCategoryFields" class="space-y-4 pt-1">
+        </div>
+
+        <div class="pt-4 flex justify-end gap-3 border-t border-app-border mt-5">
+          <button onclick="closeNewProjectModal()" class="px-4 py-2.5 rounded-xl text-xs text-gray-400 bg-app-surface hover:text-white">Cancelar</button>
+          <button onclick="createNewProject()" class="px-5 py-2.5 rounded-xl text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold transition">Crear Proyecto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-8 right-8 z-50 hidden bg-emerald-500 text-black font-bold text-xs px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 whitespace-nowrap">
+    <i data-lucide="check-circle" class="w-4 h-4"></i>
+    <span id="toastMsg">Notificación</span>
+  </div>
+
+  <script>
+    const ROUTES = {
+      'Dibujo': 'ed/drawing.html',
+      'Animacion': 'ed/animation.html',
+      'Pixel Art': 'ed/pix.html'
+    };
+
+    let projects = [];
+
+    window.onload = function() {
+      lucide.createIcons();
+      loadProjectsFromLocalStorage();
+      renderCategoryOptions();
+      renderProjects();
+    };
+
+    function saveProjectsToLocalStorage() {
+      try {
+        localStorage.setItem('bogo_projects', JSON.stringify(projects));
+      } catch (e) {
+        showToast('Error de almacenamiento local');
+      }
+    }
+
+    function loadProjectsFromLocalStorage() {
+      try {
+        const stored = localStorage.getItem('bogo_projects');
+        if (stored) {
+          projects = JSON.parse(stored);
+        }
+      } catch (e) {
+        projects = [];
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 2500);
+    }
+
+    function openNewProjectModal() {
+      document.getElementById('newProjectModal').classList.remove('hidden');
+      renderCategoryOptions();
+    }
+
+    function openNewProjectModalWithCategory(cat) {
+      document.getElementById('projectCategoryInput').value = cat;
+      openNewProjectModal();
+    }
+
+    function closeNewProjectModal() {
+      document.getElementById('newProjectModal').classList.add('hidden');
+    }
+
+    function renderCategoryOptions() {
+      const cat = document.getElementById('projectCategoryInput').value;
+      const container = document.getElementById('dynamicCategoryFields');
+
+      if (cat === 'Dibujo' || cat === 'Pixel Art') {
+        container.innerHTML = `
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Ancho (px)</label>
+              <input type="number" id="canvasWidth" value="${cat === 'Pixel Art' ? '32' : '1920'}" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Alto (px)</label>
+              <input type="number" id="canvasHeight" value="${cat === 'Pixel Art' ? '32' : '1080'}" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Color de Fondo</label>
+            <select id="canvasBg" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+              <option value="Transparente">Transparente</option>
+              <option value="Blanco">Blanco</option>
+              <option value="Negro">Negro</option>
+            </select>
+          </div>
+        `;
+      } else if (cat === 'Animacion') {
+        container.innerHTML = `
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">FPS (Fotogramas/s)</label>
+              <input type="number" id="animFPS" value="24" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Total Fotogramas</label>
+              <input type="number" id="animFrames" value="12" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Resolución</label>
+            <select id="animRes" class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">
+              <option value="1080p">1080p (Full HD)</option>
+              <option value="720p">720p (HD)</option>
+              <option value="4K">4K Ultra HD</option>
+            </select>
+          </div>
+        `;
+      }
+    }
+
+    function createNewProject() {
+      const nameInput = document.getElementById('projectNameInput');
+      const catInput = document.getElementById('projectCategoryInput');
+      const name = nameInput.value.trim() || 'Proyecto_01';
+      const category = catInput.value;
+
+      let extraDetails = {};
+      if (category === 'Dibujo' || category === 'Pixel Art') {
+        extraDetails.width = document.getElementById('canvasWidth').value;
+        extraDetails.height = document.getElementById('canvasHeight').value;
+        extraDetails.bg = document.getElementById('canvasBg').value;
+      } else if (category === 'Animacion') {
+        extraDetails.fps = document.getElementById('animFPS').value;
+        extraDetails.frames = document.getElementById('animFrames').value;
+        extraDetails.res = document.getElementById('animRes').value;
+      }
+
+      const newProj = {
+        id: 'proj_' + Date.now(),
+        name: name,
+        type: category,
+        details: extraDetails,
+        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+        data: null
+      };
+
+      projects.unshift(newProj);
+      saveProjectsToLocalStorage();
+      nameInput.value = '';
+      closeNewProjectModal();
+      renderProjects();
+      
+      openProjectEditor(newProj.id);
+    }
+
+    function openProjectEditor(id) {
+      const proj = projects.find(p => p.id === id);
+      if (!proj) return;
+
+      try {
+        localStorage.setItem('bogo_active_project', JSON.stringify(proj));
+      } catch (e) {
+        showToast('Error al preparar editor');
+      }
+
+      const targetRoute = ROUTES[proj.type] || ROUTES['Dibujo'];
+      window.location.href = `${targetRoute}?id=${proj.id}`;
+    }
+
+    function toggleMenu(event, id) {
+      event.stopPropagation();
+      const menu = document.getElementById('menu-' + id);
+      document.querySelectorAll('[id^="menu-"]').forEach(m => {
+        if (m.id !== 'menu-' + id) m.classList.add('hidden');
+      });
+      if (menu) menu.classList.toggle('hidden');
+    }
+
+    function closeAllMenus(event) {
+      document.querySelectorAll('[id^="menu-"]').forEach(m => m.classList.add('hidden'));
+    }
+
+    function renderProjects() {
+      const container = document.getElementById('projectsContainer');
+      const emptyState = document.getElementById('emptyState');
+      const countLabel = document.getElementById('projectCount');
+
+      countLabel.innerText = projects.length;
+
+      if (projects.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) {
+          container.appendChild(emptyState);
+          emptyState.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (emptyState) {
+        emptyState.classList.add('hidden');
+      }
+      container.innerHTML = '';
+
+      projects.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'custom-card p-4 rounded-2xl flex items-center justify-between gap-4 relative cursor-pointer custom-card-hover transition';
+        card.onclick = (e) => {
+          if (!e.target.closest('.menu-container')) {
+            openProjectEditor(p.id);
+          }
+        };
+
+        const iconName = p.type === 'Pixel Art' ? 'image' : (p.type === 'Animacion' ? 'video' : 'paintbrush');
+
+        card.innerHTML = `
+          <div class="flex items-center gap-3.5 min-w-0 flex-1">
+            <div class="w-11 h-11 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-emerald-400 flex-shrink-0">
+              <i data-lucide="${iconName}" class="w-5 h-5"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h4 class="font-bold text-white text-sm truncate">${p.name}</h4>
+              <p class="text-xs text-gray-400 mt-0.5">${p.type} • ${p.date}</p>
+            </div>
+          </div>
+
+          <div class="relative flex-shrink-0 menu-container">
+            <button onclick="toggleMenu(event, '${p.id}')" class="p-2 text-gray-400 hover:text-white rounded-xl bg-app-surface border border-app-border transition">
+              <i data-lucide="more-vertical" class="w-4 h-4"></i>
+            </button>
+
+            <div id="menu-${p.id}" class="hidden absolute right-0 top-11 w-40 bg-app-surface border border-app-border rounded-xl shadow-2xl z-30 py-1">
+              <button onclick="openProjectEditor('${p.id}')" class="w-full px-3.5 py-2 text-left text-xs text-white hover:bg-emerald-500/10 flex items-center gap-2.5 font-medium">
+                <i data-lucide="folder-open" class="w-4 h-4 text-emerald-400"></i>
+                <span>Abrir</span>
+              </button>
+              <button onclick="exportProjectGB('${p.id}')" class="w-full px-3.5 py-2 text-left text-xs text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-2.5 font-medium">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Exportar</span>
+              </button>
+              <button onclick="deleteProject('${p.id}')" class="w-full px-3.5 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2.5 border-t border-app-border/40 font-medium">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function deleteProject(id) {
+      projects = projects.filter(p => p.id !== id);
+      saveProjectsToLocalStorage();
+      renderProjects();
+      showToast('Proyecto eliminado');
+    }
+
+    function triggerFileUpload() {
+      document.getElementById('gbFileInput').click();
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      JSZip.loadAsync(file).then(zip => {
+        if (zip.file("project.json")) {
+          zip.file("project.json").async("string").then(content => {
+            try {
+              const meta = JSON.parse(content);
+              const importedId = meta.id || ('proj_' + Date.now());
+              
+              const existingIndex = projects.findIndex(p => p.id === importedId);
+              
+              const importedProj = {
+                id: importedId,
+                name: meta.name || file.name.replace(/\.(gb|zip)$/i, ''),
+                type: meta.type || 'Pixel Art',
+                details: meta.details || {},
+                date: meta.date || new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+                data: meta.data || null
+              };
+
+              if (existingIndex !== -1) {
+                projects[existingIndex] = importedProj;
+              } else {
+                projects.unshift(importedProj);
+              }
+
+              saveProjectsToLocalStorage();
+              renderProjects();
+              showToast('Proyecto .gb importado');
+              openProjectEditor(importedProj.id);
+            } catch (err) {
+              showToast('Error en project.json');
+            }
+          });
+        } else {
+          showToast('Formato .gb inválido');
+        }
+      }).catch(() => {
+        showToast('Error al descomprimir');
+      });
+
+      e.target.value = '';
+    }
+
+    function exportProjectGB(id) {
+      const proj = projects.find(p => p.id === id);
+      if (!proj) return;
+
+      const zip = new JSZip();
+      const meta = {
+        id: proj.id,
+        name: proj.name,
+        type: proj.type,
+        details: proj.details,
+        date: proj.date,
+        createdWith: "Bogo Platform",
+        data: proj.data
+      };
+
+      zip.file("project.json", JSON.stringify(meta, null, 2));
+
+      zip.generateAsync({ type: "blob" }).then(content => {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = proj.name.toLowerCase().replace(/\s+/g, '_') + '.gb';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Guardado como ' + a.download);
+      });
+    }
+  </script>
+</body>
+</html>
