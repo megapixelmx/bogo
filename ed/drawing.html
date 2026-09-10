@@ -1,0 +1,2575 @@
+<!DOCTYPE html>
+<html lang="es" class="dark h-full w-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bogo - Editor Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        app: {
+          bg: '#090d10',
+          card: '#12181f',
+          surface: '#18202a',
+          border: 'rgba(255, 255, 255, 0.08)',
+          accent: '#10b981',
+          glow: 'rgba(16, 185, 129, 0.15)'
+        }
+      }
+    }
+  }
+}
+</script>
+<style>
+* {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+body {
+  background-color: #05070a;
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.custom-card {
+  background: #12181f;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.checkerboard {
+  background-image: linear-gradient(45deg, #121820 25%, transparent 25%), linear-gradient(-45deg, #121820 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #121820 75%), linear-gradient(-45deg, transparent 75%, #121820 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+#canvasViewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#canvasStage {
+  position: absolute;
+  transform-origin: center center;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+#backgroundCanvas, #mainCanvas, #overlayCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+#backgroundCanvas {
+  background: transparent;
+}
+#mainCanvas {
+  background: transparent;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: #18202a;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #10b981;
+  cursor: pointer;
+  border: 2px solid #090d10;
+}
+input[type="color"] {
+  -webkit-appearance: none;
+  border: none;
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 1rem;
+}
+input[type="color"]::-webkit-color-swatch {
+  border-radius: 1rem;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.sheet-hidden {
+  display: none !important;
+}
+</style>
+</head>
+<body class="flex flex-col h-full w-full overflow-hidden bg-app-bg">
+
+<header class="flex-shrink-0 z-40 bg-app-bg/95 backdrop-blur px-4 py-2 border-b border-app-border/40 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <button onclick="goBack()" class="w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="arrow-left" class="w-4 h-4"></i>
+    </button>
+    <span id="projectNameLabel" class="text-sm font-bold text-white truncate max-w-[150px] sm:max-w-xs">Proyecto</span>
+  </div>
+
+  <div class="hidden md:flex items-center gap-1 bg-app-surface/50 p-1 rounded-2xl border border-app-border/40">
+    <button id="undoBtn" onclick="undo()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 opacity-30 active:scale-95 transition">
+      <i data-lucide="undo-2" class="w-4 h-4"></i>
+    </button>
+    <button id="redoBtn" onclick="redo()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 opacity-30 active:scale-95 transition">
+      <i data-lucide="redo-2" class="w-4 h-4"></i>
+    </button>
+    <div class="h-5 w-[1px] bg-app-border/40 mx-1"></div>
+    <button id="colorSwatchBtnHeader" onclick="openColorPanel()" style="background:#10b981" class="w-8 h-8 rounded-xl border border-app-border shadow-inner active:scale-95 transition"></button>
+    <button onclick="quickToggleEraser()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="eraser" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openSymmetryPanel()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="split" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openAdjustmentsPanel()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="sliders" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openFiltersPanel()" class="w-8 h-8 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="sparkles" class="w-4 h-4"></i>
+    </button>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <button onclick="openShortcutsPanel()" class="w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="keyboard" class="w-4 h-4"></i>
+    </button>
+    <button onclick="exportGB()" class="hidden md:flex w-9 h-9 rounded-xl bg-app-surface border border-app-border items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="download" class="w-4 h-4"></i>
+    </button>
+    <button onclick="manualSave()" class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-black active:scale-95 transition shadow-lg shadow-emerald-500/20">
+      <i data-lucide="save" class="w-4 h-4"></i>
+    </button>
+  </div>
+</header>
+
+<div class="flex-1 flex overflow-hidden relative">
+  <aside class="hidden md:flex flex-col border-r border-app-border/40 bg-app-bg w-16 p-2 items-center justify-start gap-2 overflow-y-auto hide-scrollbar z-30">
+    <button id="tool-pen-pc" onclick="setTool('pen')" class="tool-btn w-10 h-10 rounded-xl bg-emerald-500 text-black flex items-center justify-center active:scale-95 transition">
+      <i data-lucide="pen-tool" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-eyedropper-pc" onclick="setTool('eyedropper')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="pipette" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-bucket-pc" onclick="setTool('bucket')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="paint-bucket" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-blur-pc" onclick="setTool('blur')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="droplet" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-smudge-pc" onclick="setTool('smudge')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="hand-metal" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-text-pc" onclick="setTool('text')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="type" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-shapes-pc" onclick="setTool('shapes')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="shapes" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-wand-pc" onclick="setTool('wand')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="wand-2" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-lasso-pc" onclick="setTool('lasso')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="lasso" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-select-pc" onclick="setTool('select')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="square-dashed" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-transform-pc" onclick="setTool('transform')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="move" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-hand-pc" onclick="setTool('hand')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="hand" class="w-5 h-5"></i>
+    </button>
+    <button id="tool-image-pc" onclick="setTool('image')" class="tool-btn w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="image" class="w-5 h-5"></i>
+    </button>
+  </aside>
+
+  <main id="canvasViewport" class="flex-1 relative overflow-hidden bg-[#05070a]">
+    <div class="checkerboard absolute inset-0 opacity-40 pointer-events-none"></div>
+    <div id="canvasStage">
+      <canvas id="backgroundCanvas"></canvas>
+      <canvas id="mainCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+  </main>
+
+  <aside class="hidden lg:flex flex-col w-80 border-l border-app-border/40 bg-app-bg z-30 p-4 space-y-4 overflow-y-auto hide-scrollbar">
+    <div class="bg-app-card border border-app-border rounded-2xl p-3 space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold text-white uppercase tracking-wider">Control de Vista</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="adjustZoom(-0.1)" class="w-7 h-7 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95">
+          <i data-lucide="minus" class="w-3 h-3"></i>
+        </button>
+        <input type="range" id="zoomSliderPC" min="0.1" max="5" step="0.05" value="1" oninput="setZoom(this.value)" class="flex-1">
+        <button onclick="adjustZoom(0.1)" class="w-7 h-7 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95">
+          <i data-lucide="plus" class="w-3 h-3"></i>
+        </button>
+        <span id="zoomValuePC" class="text-[10px] font-mono text-gray-400 w-8 text-right">1.0</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="adjustOpacity(-5)" class="w-7 h-7 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95">
+          <i data-lucide="minus" class="w-3 h-3"></i>
+        </button>
+        <input type="range" id="opacitySliderPC" min="0" max="100" value="100" oninput="setLayerOpacity(activeLayerIndex,this.value)" onchange="setLayerOpacityCommit()" class="flex-1">
+        <button onclick="adjustOpacity(5)" class="w-7 h-7 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95">
+          <i data-lucide="plus" class="w-3 h-3"></i>
+        </button>
+        <span id="opacityValuePC" class="text-[10px] font-mono text-gray-400 w-8 text-right">100</span>
+      </div>
+    </div>
+
+    <div class="bg-app-card border border-app-border rounded-2xl p-3 flex-1 flex flex-col min-h-[300px]">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold text-white uppercase tracking-wider">Capas</span>
+        <button onclick="addLayer()" class="w-7 h-7 rounded-lg bg-emerald-500 text-black flex items-center justify-center active:scale-95 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="flex items-center gap-1 mb-3 pb-2 border-b border-app-border/40 overflow-x-auto hide-scrollbar">
+        <button onclick="flipLayerHorizontal()" class="px-2 py-1 rounded-lg bg-app-surface border border-app-border text-[9px] font-semibold text-gray-300 flex items-center gap-1 whitespace-nowrap"><i data-lucide="flip-horizontal" class="w-3 h-3"></i>Voltear H</button>
+        <button onclick="flipLayerVertical()" class="px-2 py-1 rounded-lg bg-app-surface border border-app-border text-[9px] font-semibold text-gray-300 flex items-center gap-1 whitespace-nowrap"><i data-lucide="flip-vertical" class="w-3 h-3"></i>Voltear V</button>
+        <button onclick="mergeDownLayer()" class="px-2 py-1 rounded-lg bg-app-surface border border-app-border text-[9px] font-semibold text-gray-300 flex items-center gap-1 whitespace-nowrap"><i data-lucide="arrow-down-to-line" class="w-3 h-3"></i>Combinar</button>
+      </div>
+      <div id="layersListPC" class="space-y-2 overflow-y-auto hide-scrollbar flex-1"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="md:hidden flex-shrink-0 bg-app-bg border-t border-app-border/40 px-2 py-1 z-40">
+  <div class="flex items-center gap-1 overflow-x-auto hide-scrollbar py-1">
+    <button id="undoBtnMobile" onclick="undo()" class="w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 opacity-30 active:scale-95 flex-shrink-0">
+      <i data-lucide="undo-2" class="w-4 h-4"></i>
+    </button>
+    <button id="redoBtnMobile" onclick="redo()" class="w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 opacity-30 active:scale-95 flex-shrink-0">
+      <i data-lucide="redo-2" class="w-4 h-4"></i>
+    </button>
+    <div class="h-6 w-[1px] bg-app-border/40 mx-1 flex-shrink-0"></div>
+    <button id="tool-pen" onclick="setTool('pen')" class="tool-btn w-9 h-9 rounded-xl bg-emerald-500 text-black flex items-center justify-center active:scale-95 flex-shrink-0">
+      <i data-lucide="pen-tool" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-eyedropper" onclick="setTool('eyedropper')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="pipette" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-bucket" onclick="setTool('bucket')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="paint-bucket" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-blur" onclick="setTool('blur')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="droplet" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-smudge" onclick="setTool('smudge')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="hand-metal" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-text" onclick="setTool('text')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="type" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-shapes" onclick="setTool('shapes')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="shapes" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-wand" onclick="setTool('wand')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="wand-2" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-lasso" onclick="setTool('lasso')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="lasso" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-select" onclick="setTool('select')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="square-dashed" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-transform" onclick="setTool('transform')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="move" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-hand" onclick="setTool('hand')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="hand" class="w-4 h-4"></i>
+    </button>
+    <button id="tool-image" onclick="setTool('image')" class="tool-btn w-9 h-9 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 flex-shrink-0">
+      <i data-lucide="image" class="w-4 h-4"></i>
+    </button>
+  </div>
+</div>
+
+<div class="md:hidden flex-shrink-0 border-t border-app-border/40 bg-app-bg pt-2 pb-1 z-30">
+  <div class="px-4 space-y-1.5">
+    <div class="flex items-center gap-2">
+      <button onclick="adjustZoom(-0.1)" class="w-6 h-6 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 flex-shrink-0 active:scale-95">
+        <i data-lucide="minus" class="w-3 h-3"></i>
+      </button>
+      <input type="range" id="zoomSlider" min="0.1" max="5" step="0.05" value="1" oninput="setZoom(this.value)" class="flex-1">
+      <button onclick="adjustZoom(0.1)" class="w-6 h-6 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 flex-shrink-0 active:scale-95">
+        <i data-lucide="plus" class="w-3 h-3"></i>
+      </button>
+      <span id="zoomValue" class="text-[10px] font-mono text-gray-400 w-8 text-right">1.0</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="adjustOpacity(-5)" class="w-6 h-6 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 flex-shrink-0 active:scale-95">
+        <i data-lucide="minus" class="w-3 h-3"></i>
+      </button>
+      <input type="range" id="opacitySlider" min="0" max="100" value="100" oninput="setLayerOpacity(activeLayerIndex,this.value)" onchange="setLayerOpacityCommit()" class="flex-1">
+      <button onclick="adjustOpacity(5)" class="w-6 h-6 rounded-lg bg-app-surface border border-app-border flex items-center justify-center text-gray-300 flex-shrink-0 active:scale-95">
+        <i data-lucide="plus" class="w-3 h-3"></i>
+      </button>
+      <span id="opacityValue" class="text-[10px] font-mono text-gray-400 w-8 text-right">100</span>
+    </div>
+  </div>
+  <div class="flex items-center justify-around px-4 py-2 mt-1">
+    <button id="colorSwatchBtn" onclick="openColorPanel()" style="background:#10b981" class="w-10 h-10 rounded-xl border border-app-border shadow-inner active:scale-95 transition"></button>
+    <button onclick="quickToggleEraser()" id="eraserToggleBtn" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="eraser" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openSymmetryPanel()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="split" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openAdjustmentsPanel()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="sliders" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openFiltersPanel()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="sparkles" class="w-4 h-4"></i>
+    </button>
+    <button onclick="openLayersPanel()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 relative active:scale-95 transition">
+      <i data-lucide="layers" class="w-4 h-4"></i>
+      <span id="layerCountBadge" class="absolute -top-1 -right-1 bg-emerald-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">1</span>
+    </button>
+    <button onclick="exportGB()" class="w-10 h-10 rounded-xl bg-app-surface border border-app-border flex items-center justify-center text-gray-300 active:scale-95 transition">
+      <i data-lucide="download" class="w-4 h-4"></i>
+    </button>
+  </div>
+</div>
+
+<div id="toolPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:left-20 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl backdrop-blur-xl">
+    <div class="flex items-center justify-between mb-3">
+      <h3 id="toolPanelTitle" class="text-sm font-bold text-white">Herramienta</h3>
+      <button onclick="closeToolPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="toolPanelBody"></div>
+  </div>
+</div>
+
+<div id="layersPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 z-50 max-w-md mx-auto md:hidden">
+  <div class="bg-app-card border-t border-app-border rounded-t-3xl p-4 pb-6 shadow-2xl max-h-[70vh] flex flex-col backdrop-blur-xl">
+    <div class="flex items-center justify-between mb-3 flex-shrink-0">
+      <h3 class="text-sm font-bold text-white">Capas</h3>
+      <div class="flex items-center gap-2">
+        <button onclick="addLayer()" class="w-8 h-8 rounded-lg bg-emerald-500 text-black flex items-center justify-center active:scale-95 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+        <button onclick="closeLayersPanel()" class="text-gray-400 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-app-border/40 overflow-x-auto hide-scrollbar flex-shrink-0">
+      <button onclick="flipLayerHorizontal()" class="px-2.5 py-1.5 rounded-lg bg-app-surface border border-app-border text-[10px] font-semibold text-gray-300 flex items-center gap-1 active:scale-95 whitespace-nowrap"><i data-lucide="flip-horizontal" class="w-3.5 h-3.5"></i>Voltear H</button>
+      <button onclick="flipLayerVertical()" class="px-2.5 py-1.5 rounded-lg bg-app-surface border border-app-border text-[10px] font-semibold text-gray-300 flex items-center gap-1 active:scale-95 whitespace-nowrap"><i data-lucide="flip-vertical" class="w-3.5 h-3.5"></i>Voltear V</button>
+      <button onclick="mergeDownLayer()" class="px-2.5 py-1.5 rounded-lg bg-app-surface border border-app-border text-[10px] font-semibold text-gray-300 flex items-center gap-1 active:scale-95 whitespace-nowrap"><i data-lucide="arrow-down-to-line" class="w-3.5 h-3.5"></i>Combinar Abajo</button>
+      <button onclick="flattenCanvas()" class="px-2.5 py-1.5 rounded-lg bg-app-surface border border-app-border text-[10px] font-semibold text-gray-300 flex items-center gap-1 active:scale-95 whitespace-nowrap"><i data-lucide="layers" class="w-3.5 h-3.5"></i>Aplanar Todo</button>
+    </div>
+    <div class="mb-3 pb-2 border-b border-app-border/40 flex flex-col gap-2 flex-shrink-0">
+      <span class="text-xs font-semibold text-white">Fondo del Lienzo</span>
+      <div class="grid grid-cols-3 gap-2">
+        <button onclick="setBackgroundType('transparent')" class="p-2 rounded-lg bg-app-surface border border-app-border text-[10px] text-gray-300 flex items-center justify-center gap-1"><i data-lucide="grid" class="w-3.5 h-3.5"></i>Transparente</button>
+        <button onclick="setBackgroundType('color')" class="p-2 rounded-lg bg-app-surface border border-app-border text-[10px] text-gray-300 flex items-center justify-center gap-1"><i data-lucide="palette" class="w-3.5 h-3.5"></i>Color</button>
+        <button onclick="setBackgroundType('image')" class="p-2 rounded-lg bg-app-surface border border-app-border text-[10px] text-gray-300 flex items-center justify-center gap-1"><i data-lucide="image" class="w-3.5 h-3.5"></i>Imagen</button>
+      </div>
+      <div id="bgOptionsContainer" class="mt-1"></div>
+    </div>
+    <div id="layersList" class="space-y-2 overflow-y-auto hide-scrollbar flex-1"></div>
+  </div>
+</div>
+
+<div id="colorPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:right-4 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl backdrop-blur-xl">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-bold text-white">Color</h3>
+      <button onclick="closeColorPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="colorPanelBody"></div>
+  </div>
+</div>
+
+<div id="symmetryPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:right-4 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl backdrop-blur-xl">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-bold text-white">Guías de Simetría</h3>
+      <button onclick="closeSymmetryPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      <button onclick="setSymmetryMode('none')" id="symBtn-none" class="p-3 rounded-xl border border-app-border bg-emerald-500 text-black text-xs font-semibold flex items-center justify-center gap-2"><i data-lucide="off" class="w-4 h-4"></i>Desactivada</button>
+      <button onclick="setSymmetryMode('vertical')" id="symBtn-vertical" class="p-3 rounded-xl border border-app-border bg-app-surface text-gray-300 text-xs font-semibold flex items-center justify-center gap-2"><i data-lucide="separator-vertical" class="w-4 h-4"></i>Vertical</button>
+      <button onclick="setSymmetryMode('horizontal')" id="symBtn-horizontal" class="p-3 rounded-xl border border-app-border bg-app-surface text-gray-300 text-xs font-semibold flex items-center justify-center gap-2"><i data-lucide="separator-horizontal" class="w-4 h-4"></i>Horizontal</button>
+      <button onclick="setSymmetryMode('radial')" id="symBtn-radial" class="p-3 rounded-xl border border-app-border bg-app-surface text-gray-300 text-xs font-semibold flex items-center justify-center gap-2"><i data-lucide="asterisk" class="w-4 h-4"></i>Radial</button>
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Divisiones Radiales</span><span id="symRadialVal">8</span></div>
+      <input type="range" min="2" max="16" value="8" oninput="symmetryRadialSegments=parseInt(this.value);document.getElementById('symRadialVal').innerText=this.value;drawSelectionOverlay();" class="w-full">
+    </div>
+  </div>
+</div>
+
+<div id="adjustmentsPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:right-4 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl backdrop-blur-xl space-y-4">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-sm font-bold text-white">Ajustes de Color</h3>
+      <button onclick="closeAdjustmentsPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Brillo</span><span id="adjBrightnessVal">0</span></div>
+      <input type="range" id="adjBrightness" min="-100" max="100" value="0" oninput="document.getElementById('adjBrightnessVal').innerText=this.value" class="w-full">
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Contraste</span><span id="adjContrastVal">0</span></div>
+      <input type="range" id="adjContrast" min="-100" max="100" value="0" oninput="document.getElementById('adjContrastVal').innerText=this.value" class="w-full">
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Saturación</span><span id="adjSaturationVal">0</span></div>
+      <input type="range" id="adjSaturation" min="-100" max="100" value="0" oninput="document.getElementById('adjSaturationVal').innerText=this.value" class="w-full">
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Tono (Hue)</span><span id="adjHueVal">0°</span></div>
+      <input type="range" id="adjHue" min="-180" max="180" value="0" oninput="document.getElementById('adjHueVal').innerText=this.value+'°'" class="w-full">
+    </div>
+    <button onclick="applyColorAdjustments()" class="w-full bg-emerald-500 text-black font-bold text-xs py-2.5 rounded-xl active:scale-95 transition">Aplicar Ajustes</button>
+  </div>
+</div>
+
+<div id="filtersPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:right-4 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl backdrop-blur-xl space-y-3">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-sm font-bold text-white">Filtros de Imagen</h3>
+      <button onclick="closeFiltersPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <button onclick="applyFilterBlur()" class="p-3 bg-app-surface border border-app-border rounded-xl text-xs font-semibold text-gray-200 flex flex-col items-center gap-1 active:scale-95"><i data-lucide="droplet" class="w-4 h-4 text-emerald-400"></i>Desenfoque</button>
+      <button onclick="applyFilterSharpen()" class="p-3 bg-app-surface border border-app-border rounded-xl text-xs font-semibold text-gray-200 flex flex-col items-center gap-1 active:scale-95"><i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>Enfocar</button>
+      <button onclick="applyFilterInvert()" class="p-3 bg-app-surface border border-app-border rounded-xl text-xs font-semibold text-gray-200 flex flex-col items-center gap-1 active:scale-95"><i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-400"></i>Invertir</button>
+    </div>
+  </div>
+</div>
+
+<div id="shortcutsPanelSheet" class="sheet-hidden fixed inset-x-0 bottom-0 md:bottom-auto md:top-14 md:right-4 md:w-80 md:inset-x-auto z-50">
+  <div class="bg-app-card border border-app-border rounded-t-3xl md:rounded-2xl p-4 pb-6 md:pb-4 shadow-2xl max-h-[60vh] overflow-y-auto backdrop-blur-xl space-y-3">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-sm font-bold text-white">Atajos de Teclado y Gestos</h3>
+      <button onclick="closeShortcutsPanel()" class="text-gray-400 p-1">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="space-y-2 text-xs text-gray-300">
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Pincel</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">B</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Borrador</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">E</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Cuentagotas</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">I</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Bote de Pintura</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">G</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Mano (Mover Vista)</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">H / Barra Espaciadora</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Transformar</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">T</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Deshacer</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">Ctrl + Z</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Rehacer</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">Ctrl + Y</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Seleccionar Todo</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">Ctrl + A</kbd></div>
+      <div class="flex justify-between border-b border-app-border/40 pb-1"><span>Deseleccionar</span><kbd class="bg-app-surface px-2 py-0.5 rounded text-[10px]">Ctrl + D</kbd></div>
+      <div class="pt-2 font-semibold text-emerald-400">Gestos Táctiles:</div>
+      <p class="text-[11px] text-gray-400">Pellizcar con dos dedos para Zoom. Arrastrar con dos dedos para desplazar la vista (Pan). Doble toque para avanzar capa, Triple toque para retroceder capa.</p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="imageFileInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+<input type="file" id="bgFileInput" accept="image/*" class="hidden" onchange="handleBgImageUpload(event)">
+<input type="file" id="customBrushInput" accept="image/*" class="hidden" onchange="handleCustomBrushUpload(event)">
+
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] hidden bg-emerald-500 text-black font-bold text-xs px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 whitespace-nowrap">
+  <i data-lucide="check-circle" class="w-4 h-4"></i>
+  <span id="toastMsg">Notificación</span>
+</div>
+
+<script>
+const DB_NAME = 'BogoStudioDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'projects';
+const PALETTE = ['#ffffff','#000000','#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#14b8a6','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899'];
+const toolPanelTitles = {
+  select: 'Herramienta de Selección',
+  hand: 'Herramienta de Mano',
+  pen: 'Pincel',
+  blur: 'Desenfocar Trazo',
+  smudge: 'Dedo (Smudge)',
+  image: 'Insertar Imagen',
+  eyedropper: 'Cuentagotas',
+  bucket: 'Bote de Pintura',
+  text: 'Herramienta de Texto',
+  shapes: 'Formas Geométricas',
+  wand: 'Varita Mágica',
+  lasso: 'Lazo de Selección',
+  transform: 'Transformación Libre'
+};
+
+let projectId = null;
+let projectMeta = null;
+let canvasWidth = 1920;
+let canvasHeight = 1080;
+let layers = [];
+let activeLayerIndex = 0;
+let currentTool = 'pen';
+let brush = { size: 10, color: '#10b981', opacity: 100, hardness: 100, type: 'pencil', customImg: null };
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+let selection = null;
+let selectionMaskCanvas = null;
+let selectionInverted = false;
+let dashOffset = 0;
+let toolPanelOpenFor = null;
+let history = [];
+let historyIndex = -1;
+let persistTimer = null;
+
+let backgroundConfig = { type: 'transparent', color: '#ffffff', image: null };
+
+let activePointers = new Map();
+let isMultiTouch = false;
+let tapCount = 0;
+let tapTimer = null;
+
+let symmetryMode = 'none';
+let symmetryRadialSegments = 8;
+let shapeType = 'line';
+let shapeFill = false;
+let textContent = '';
+let fontSize = 40;
+let magicTolerance = 32;
+let lassoPoints = [];
+
+let transformState = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, origCanvas: null };
+
+let isDrawing = false;
+let isPanning = false;
+let isSelecting = false;
+let isTransforming = false;
+let lastX = 0;
+let lastY = 0;
+let panStartX = 0;
+let panStartY = 0;
+let panOrigX = 0;
+let panOrigY = 0;
+let selStart = null;
+let initialPinchDist = null;
+let initialZoom = 1;
+
+let mainCanvas, overlayCanvas, backgroundCanvas, viewportEl, stageEl;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbPut(record) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function dbGet(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(tx.error);
+  }));
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.innerText = msg;
+  toast.classList.remove('hidden');
+  setTimeout(() => { toast.classList.add('hidden'); }, 2200);
+}
+
+function goBack() {
+  location.href = '../index.html';
+}
+
+function createLayer(name) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  return {
+    id: 'layer_' + Date.now() + Math.random().toString(36).slice(2, 6),
+    name: name,
+    visible: true,
+    opacity: 100,
+    blendMode: 'source-over',
+    alphaLock: false,
+    canvas: canvas
+  };
+}
+
+function updateBackgroundCanvas() {
+  if (!backgroundCanvas) return;
+  const ctx = backgroundCanvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  if (backgroundConfig.type === 'color') {
+    ctx.fillStyle = backgroundConfig.color || '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  } else if (backgroundConfig.type === 'image' && backgroundConfig.image) {
+    const img = backgroundConfig.image;
+    const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.drawImage(img, (canvasWidth - w) / 2, (canvasHeight - h) / 2, w, h);
+  }
+}
+
+function setBackgroundType(type) {
+  backgroundConfig.type = type;
+  renderBackgroundOptions();
+  updateBackgroundCanvas();
+}
+
+function renderBackgroundOptions() {
+  const container = document.getElementById('bgOptionsContainer');
+  if (!container) return;
+  if (backgroundConfig.type === 'color') {
+    container.innerHTML = '<div class="flex items-center gap-2 mt-2"><label class="text-xs text-gray-300">Color:</label><input type="color" value="' + (backgroundConfig.color || '#ffffff') + '" onchange="backgroundConfig.color=this.value;updateBackgroundCanvas();" class="w-8 h-8 rounded border border-app-border bg-transparent"></div>';
+  } else if (backgroundConfig.type === 'image') {
+    container.innerHTML = '<div class="mt-2"><button onclick="document.getElementById(\'bgFileInput\').click()" class="w-full bg-app-surface border border-app-border text-xs text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2"><i data-lucide="upload" class="w-3.5 h-3.5"></i>Seleccionar Imagen</button></div>';
+    lucide.createIcons();
+  } else {
+    container.innerHTML = '';
+  }
+}
+
+function handleBgImageUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      backgroundConfig.image = img;
+      updateBackgroundCanvas();
+      showToast('Imagen de fondo cargada');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function handleCustomBrushUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      brush.customImg = img;
+      brush.type = 'custom';
+      updateBrushPreview();
+      showToast('Estampa personalizada cargada');
+      if (toolPanelOpenFor === 'pen') {
+        document.getElementById('toolPanelBody').innerHTML = generatePanelHTML('pen');
+        lucide.createIcons();
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function loadLayerFromData(l) {
+  return new Promise(resolve => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const img = new Image();
+    img.onload = () => {
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      resolve({
+        id: l.id,
+        name: l.name,
+        visible: l.visible,
+        opacity: l.opacity,
+        blendMode: l.blendMode || 'source-over',
+        alphaLock: !!l.alphaLock,
+        canvas: canvas
+      });
+    };
+    img.onerror = () => resolve({
+      id: l.id,
+      name: l.name,
+      visible: l.visible,
+      opacity: l.opacity,
+      blendMode: l.blendMode || 'source-over',
+      alphaLock: !!l.alphaLock,
+      canvas: canvas
+    });
+    img.src = l.dataURL;
+  });
+}
+
+function setupCanvasSize() {
+  if (backgroundCanvas) {
+    backgroundCanvas.width = canvasWidth;
+    backgroundCanvas.height = canvasHeight;
+  }
+  mainCanvas.width = canvasWidth;
+  mainCanvas.height = canvasHeight;
+  overlayCanvas.width = canvasWidth;
+  overlayCanvas.height = canvasHeight;
+  stageEl.style.width = canvasWidth + 'px';
+  stageEl.style.height = canvasHeight + 'px';
+  updateBackgroundCanvas();
+}
+
+function compositeAll() {
+  const ctx = mainCanvas.getContext('2d');
+  ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!layer.visible) continue;
+    ctx.globalAlpha = layer.opacity / 100;
+    ctx.globalCompositeOperation = layer.blendMode || 'source-over';
+    ctx.drawImage(layer.canvas, 0, 0);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function applyTransform() {
+  stageEl.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+}
+
+function fitToScreen() {
+  const container = viewportEl;
+  const cw = container.clientWidth - 32;
+  const ch = container.clientHeight - 32;
+  if (cw <= 0 || ch <= 0) return;
+  const z = Math.min(cw / canvasWidth, ch / canvasHeight);
+  zoom = Math.max(0.05, Math.min(5, z));
+  panX = 0;
+  panY = 0;
+  const zs = document.getElementById('zoomSlider');
+  if (zs) zs.value = zoom.toFixed(2);
+  const zv = document.getElementById('zoomValue');
+  if (zv) zv.innerText = zoom.toFixed(1);
+  const zspc = document.getElementById('zoomSliderPC');
+  if (zspc) zspc.value = zoom.toFixed(2);
+  const zvpc = document.getElementById('zoomValuePC');
+  if (zvpc) zvpc.innerText = zoom.toFixed(1);
+  applyTransform();
+}
+
+function resetView() {
+  fitToScreen();
+}
+
+function setZoom(v) {
+  zoom = parseFloat(v);
+  const zv = document.getElementById('zoomValue');
+  if (zv) zv.innerText = zoom.toFixed(1);
+  const zs = document.getElementById('zoomSlider');
+  if (zs) zs.value = zoom;
+  const zvpc = document.getElementById('zoomValuePC');
+  if (zvpc) zvpc.innerText = zoom.toFixed(1);
+  const zspc = document.getElementById('zoomSliderPC');
+  if (zspc) zspc.value = zoom;
+  applyTransform();
+}
+
+function adjustZoom(delta) {
+  setZoom(Math.min(5, Math.max(0.1, zoom + delta)).toFixed(2));
+}
+
+function adjustOpacity(delta) {
+  if (!layers[activeLayerIndex]) return;
+  const v = Math.min(100, Math.max(0, layers[activeLayerIndex].opacity + delta));
+  const os = document.getElementById('opacitySlider');
+  if (os) os.value = v;
+  const ospc = document.getElementById('opacitySliderPC');
+  if (ospc) ospc.value = v;
+  setLayerOpacity(activeLayerIndex, v);
+  setLayerOpacityCommit();
+}
+
+function getCanvasPoint(e) {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvasWidth / rect.width);
+  const y = (e.clientY - rect.top) * (canvasHeight / rect.height);
+  return { x: x, y: y };
+}
+
+function getSymmetryPoints(p) {
+  const points = [p];
+  const cx = canvasWidth / 2;
+  const cy = canvasHeight / 2;
+  if (symmetryMode === 'vertical') {
+    points.push({ x: cx + (cx - p.x), y: p.y });
+  } else if (symmetryMode === 'horizontal') {
+    points.push({ x: p.x, y: cy + (cy - p.y) });
+  } else if (symmetryMode === 'radial') {
+    const count = symmetryRadialSegments;
+    const angleStep = (Math.PI * 2) / count;
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const radius = Math.sqrt(dx * dx + dy * dy);
+    const baseAngle = Math.atan2(dy, dx);
+    for (let i = 1; i < count; i++) {
+      const ang = baseAngle + i * angleStep;
+      points.push({ x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius });
+    }
+  }
+  return points;
+}
+
+function drawSegmentSingle(ctx, x1, y1, x2, y2) {
+  ctx.globalCompositeOperation = brush.type === 'eraser' ? 'destination-out' : (layers[activeLayerIndex].alphaLock ? 'source-atop' : 'source-over');
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = brush.size;
+  ctx.strokeStyle = brush.color;
+  ctx.globalAlpha = brush.opacity / 100;
+  ctx.shadowBlur = brush.type === 'eraser' ? 0 : (100 - brush.hardness) / 100 * brush.size;
+  ctx.shadowColor = brush.color;
+
+  if (brush.type === 'airbrush') {
+    sprayAt(ctx, x2, y2);
+  } else if (brush.type === 'calligraphy') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x1 - brush.size/2, y1 - brush.size/4);
+    ctx.lineTo(x2 - brush.size/2, y2 - brush.size/4);
+    ctx.lineTo(x2 + brush.size/2, y2 + brush.size/4);
+    ctx.lineTo(x1 + brush.size/2, y1 + brush.size/4);
+    ctx.closePath();
+    ctx.fillStyle = brush.color;
+    ctx.fill();
+    ctx.restore();
+  } else if (brush.type === 'custom' && brush.customImg) {
+    const s = brush.size * 2;
+    ctx.drawImage(brush.customImg, x2 - s/2, y2 - s/2, s, s);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawSegment(x1, y1, x2, y2) {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const pts1 = getSymmetryPoints({ x: x1, y: y1 });
+  const pts2 = getSymmetryPoints({ x: x2, y: y2 });
+  for (let i = 0; i < pts1.length; i++) {
+    drawSegmentSingle(ctx, pts1[i].x, pts1[i].y, pts2[i].x, pts2[i].y);
+  }
+}
+
+function performBlurStroke(x, y) {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const r = Math.max(1, Math.floor(brush.size));
+  const sx = Math.max(0, Math.floor(x - r));
+  const sy = Math.max(0, Math.floor(y - r));
+  const sw = Math.min(canvasWidth - sx, r * 2);
+  const sh = Math.min(canvasHeight - sy, r * 2);
+  if (sw <= 0 || sh <= 0) return;
+
+  const temp = document.createElement('canvas');
+  temp.width = sw;
+  temp.height = sh;
+  const tCtx = temp.getContext('2d');
+  tCtx.filter = 'blur(3px)';
+  tCtx.drawImage(layer.canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(temp, sx, sy);
+  ctx.restore();
+}
+
+function performSmudgeStroke(x1, y1, x2, y2) {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const r = Math.max(1, Math.floor(brush.size / 2));
+  const sx = Math.max(0, Math.floor(x1 - r));
+  const sy = Math.max(0, Math.floor(y1 - r));
+  const sw = Math.min(canvasWidth - sx, r * 2);
+  const sh = Math.min(canvasHeight - sy, r * 2);
+  if (sw <= 0 || sh <= 0) return;
+
+  const imgData = ctx.getImageData(sx, sy, sw, sh);
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.putImageData(imgData, Math.floor(x2 - r), Math.floor(y2 - r));
+  ctx.restore();
+}
+
+function sprayAt(ctx, x, y) {
+  const density = 25;
+  for (let i = 0; i < density; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * brush.size;
+    ctx.beginPath();
+    ctx.fillStyle = brush.color;
+    ctx.arc(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function performEyedropper(p) {
+  const ctx = mainCanvas.getContext('2d');
+  const x = Math.floor(p.x);
+  const y = Math.floor(p.y);
+  if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return;
+  const pixel = ctx.getImageData(x, y, 1, 1).data;
+  const hex = "#" + ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1);
+  setBrushColor(hex);
+  showToast('Color tomado: ' + hex);
+}
+
+function performBucketFill(p) {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+  const startX = Math.floor(p.x);
+  const startY = Math.floor(p.y);
+  if (startX < 0 || startX >= canvasWidth || startY < 0 || startY >= canvasHeight) return;
+
+  const targetIdx = (startY * canvasWidth + startX) * 4;
+  const targetR = data[targetIdx];
+  const targetG = data[targetIdx + 1];
+  const targetB = data[targetIdx + 2];
+  const targetA = data[targetIdx + 3];
+
+  const fillHex = brush.color;
+  const fillR = parseInt(fillHex.slice(1, 3), 16);
+  const fillG = parseInt(fillHex.slice(3, 5), 16);
+  const fillB = parseInt(fillHex.slice(5, 7), 16);
+  const fillA = Math.round((brush.opacity / 100) * 255);
+
+  if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === fillA) return;
+
+  const queue = [startX, startY];
+  const visited = new Uint8Array(canvasWidth * canvasHeight);
+
+  while (queue.length > 0) {
+    const cy = queue.pop();
+    const cx = queue.pop();
+    const idx = (cy * canvasWidth + cx) * 4;
+    const visIdx = cy * canvasWidth + cx;
+
+    if (visited[visIdx]) continue;
+    visited[visIdx] = 1;
+
+    if (Math.abs(data[idx] - targetR) <= magicTolerance &&
+        Math.abs(data[idx + 1] - targetG) <= magicTolerance &&
+        Math.abs(data[idx + 2] - targetB) <= magicTolerance &&
+        Math.abs(data[idx + 3] - targetA) <= magicTolerance) {
+
+      data[idx] = fillR;
+      data[idx + 1] = fillG;
+      data[idx + 2] = fillB;
+      data[idx + 3] = fillA;
+
+      if (cx > 0) { queue.push(cx - 1, cy); }
+      if (cx < canvasWidth - 1) { queue.push(cx + 1, cy); }
+      if (cy > 0) { queue.push(cx, cy - 1); }
+      if (cy < canvasHeight - 1) { queue.push(cx, cy + 1); }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  showToast('Relleno completado');
+}
+
+function drawShapeOnCanvas(ctx, p1, p2) {
+  ctx.save();
+  ctx.strokeStyle = brush.color;
+  ctx.fillStyle = brush.color;
+  ctx.lineWidth = brush.size;
+  ctx.globalAlpha = brush.opacity / 100;
+
+  if (shapeType === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  } else if (shapeType === 'rect') {
+    const x = Math.min(p1.x, p2.x);
+    const y = Math.min(p1.y, p2.y);
+    const w = Math.abs(p2.x - p1.x);
+    const h = Math.abs(p2.y - p1.y);
+    if (shapeFill) ctx.fillRect(x, y, w, h);
+    else ctx.strokeRect(x, y, w, h);
+  } else if (shapeType === 'ellipse') {
+    const rx = Math.abs(p2.x - p1.x) / 2;
+    const ry = Math.abs(p2.y - p1.y) / 2;
+    const cx = Math.min(p1.x, p2.x) + rx;
+    const cy = Math.min(p1.y, p2.y) + ry;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2);
+    if (shapeFill) ctx.fill();
+    else ctx.stroke();
+  } else if (shapeType === 'polygon') {
+    const sides = 5;
+    const rx = Math.abs(p2.x - p1.x) / 2;
+    const ry = Math.abs(p2.y - p1.y) / 2;
+    const cx = Math.min(p1.x, p2.x) + rx;
+    const cy = Math.min(p1.y, p2.y) + ry;
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+      const ang = (i * 2 * Math.PI) / sides - Math.PI / 2;
+      const px = cx + rx * Math.cos(ang);
+      const py = cy + ry * Math.sin(ang);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (shapeFill) ctx.fill();
+    else ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function renderTextOnCanvas(p) {
+  if (!textContent) return;
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  ctx.save();
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.fillStyle = brush.color;
+  ctx.globalAlpha = brush.opacity / 100;
+  ctx.fillText(textContent, p.x, p.y);
+  ctx.restore();
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  showToast('Texto añadido');
+}
+
+function performMagicWand(p) {
+  const ctx = mainCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+  const startX = Math.floor(p.x);
+  const startY = Math.floor(p.y);
+  if (startX < 0 || startX >= canvasWidth || startY < 0 || startY >= canvasHeight) return;
+
+  const targetIdx = (startY * canvasWidth + startX) * 4;
+  const targetR = data[targetIdx];
+  const targetG = data[targetIdx + 1];
+  const targetB = data[targetIdx + 2];
+  const targetA = data[targetIdx + 3];
+
+  selectionMaskCanvas = document.createElement('canvas');
+  selectionMaskCanvas.width = canvasWidth;
+  selectionMaskCanvas.height = canvasHeight;
+  const mCtx = selectionMaskCanvas.getContext('2d');
+  const maskImg = mCtx.createImageData(canvasWidth, canvasHeight);
+  const maskData = maskImg.data;
+
+  const queue = [startX, startY];
+  const visited = new Uint8Array(canvasWidth * canvasHeight);
+
+  let minX = canvasWidth, minY = canvasHeight, maxX = 0, maxY = 0;
+
+  while (queue.length > 0) {
+    const cy = queue.pop();
+    const cx = queue.pop();
+    const idx = (cy * canvasWidth + cx) * 4;
+    const visIdx = cy * canvasWidth + cx;
+
+    if (visited[visIdx]) continue;
+    visited[visIdx] = 1;
+
+    if (Math.abs(data[idx] - targetR) <= magicTolerance &&
+        Math.abs(data[idx + 1] - targetG) <= magicTolerance &&
+        Math.abs(data[idx + 2] - targetB) <= magicTolerance &&
+        Math.abs(data[idx + 3] - targetA) <= magicTolerance) {
+
+      maskData[idx + 3] = 255;
+      if (cx < minX) minX = cx;
+      if (cx > maxX) maxX = cx;
+      if (cy < minY) minY = cy;
+      if (cy > maxY) maxY = cy;
+
+      if (cx > 0) queue.push(cx - 1, cy);
+      if (cx < canvasWidth - 1) queue.push(cx + 1, cy);
+      if (cy > 0) queue.push(cx, cy - 1);
+      if (cy < canvasHeight - 1) queue.push(cx, cy + 1);
+    }
+  }
+  mCtx.putImageData(maskImg, 0, 0);
+  selection = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+  drawSelectionOverlay();
+  showToast('Varita mágica aplicada');
+}
+
+function initTransform() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  transformState.origCanvas = document.createElement('canvas');
+  transformState.origCanvas.width = canvasWidth;
+  transformState.origCanvas.height = canvasHeight;
+  transformState.origCanvas.getContext('2d').drawImage(layer.canvas, 0, 0);
+  transformState.x = 0;
+  transformState.y = 0;
+  transformState.scaleX = 1;
+  transformState.scaleY = 1;
+  transformState.rotation = 0;
+}
+
+function applyTransformState() {
+  const layer = layers[activeLayerIndex];
+  if (!layer || !transformState.origCanvas) return;
+  const ctx = layer.canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.save();
+  ctx.translate(canvasWidth / 2 + transformState.x, canvasHeight / 2 + transformState.y);
+  ctx.rotate((transformState.rotation * Math.PI) / 180);
+  ctx.scale(transformState.scaleX, transformState.scaleY);
+  ctx.drawImage(transformState.origCanvas, -canvasWidth / 2, -canvasHeight / 2);
+  ctx.restore();
+  compositeAll();
+}
+
+function handleMultiTap() {
+  tapCount++;
+  if (tapTimer) clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => {
+    if (tapCount === 2) {
+      if (layers.length > 0) {
+        activeLayerIndex = (activeLayerIndex + 1) % layers.length;
+        renderLayersPanel();
+        showToast('Capa siguiente: ' + layers[activeLayerIndex].name);
+      }
+    } else if (tapCount === 3) {
+      if (layers.length > 0) {
+        activeLayerIndex = (activeLayerIndex - 1 + layers.length) % layers.length;
+        renderLayersPanel();
+        showToast('Capa anterior: ' + layers[activeLayerIndex].name);
+      }
+    }
+    tapCount = 0;
+  }, 300);
+}
+
+function onPointerDown(e) {
+  e.preventDefault();
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (activePointers.size >= 2) {
+    isMultiTouch = true;
+    if (isDrawing) isDrawing = false;
+    const pts = Array.from(activePointers.values());
+    initialPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    initialZoom = zoom;
+    isPanning = true;
+    panStartX = (pts[0].x + pts[1].x) / 2;
+    panStartY = (pts[0].y + pts[1].y) / 2;
+    panOrigX = panX;
+    panOrigY = panY;
+    return;
+  }
+
+  isMultiTouch = false;
+  handleMultiTap();
+  overlayCanvas.setPointerCapture(e.pointerId);
+  const p = getCanvasPoint(e);
+
+  if (currentTool === 'pen') {
+    isDrawing = true;
+    lastX = p.x;
+    lastY = p.y;
+    drawSegment(p.x, p.y, p.x + 0.01, p.y + 0.01);
+    compositeAll();
+  } else if (currentTool === 'blur') {
+    isDrawing = true;
+    performBlurStroke(p.x, p.y);
+    compositeAll();
+  } else if (currentTool === 'smudge') {
+    isDrawing = true;
+    lastX = p.x;
+    lastY = p.y;
+  } else if (currentTool === 'eyedropper') {
+    performEyedropper(p);
+  } else if (currentTool === 'bucket') {
+    performBucketFill(p);
+  } else if (currentTool === 'text') {
+    renderTextOnCanvas(p);
+  } else if (currentTool === 'wand') {
+    performMagicWand(p);
+  } else if (currentTool === 'hand') {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOrigX = panX;
+    panOrigY = panY;
+  } else if (currentTool === 'select' || currentTool === 'shapes') {
+    isSelecting = true;
+    selStart = { x: p.x, y: p.y };
+    selection = { x: p.x, y: p.y, w: 0, h: 0 };
+  } else if (currentTool === 'lasso') {
+    isSelecting = true;
+    lassoPoints = [{ x: p.x, y: p.y }];
+  } else if (currentTool === 'transform') {
+    isTransforming = true;
+    if (!transformState.origCanvas) initTransform();
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+}
+
+function onPointerMove(e) {
+  if (activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  if (activePointers.size >= 2) {
+    const pts = Array.from(activePointers.values());
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    if (initialPinchDist) {
+      const newZoom = Math.min(5, Math.max(0.1, initialZoom * (dist / initialPinchDist)));
+      setZoom(newZoom.toFixed(2));
+    }
+    const currentMidX = (pts[0].x + pts[1].x) / 2;
+    const currentMidY = (pts[0].y + pts[1].y) / 2;
+    panX = panOrigX + (currentMidX - panStartX);
+    panY = panOrigY + (currentMidY - panStartY);
+    applyTransform();
+    return;
+  }
+
+  if (isMultiTouch) return;
+
+  const p = getCanvasPoint(e);
+  if (currentTool === 'pen' && isDrawing) {
+    drawSegment(lastX, lastY, p.x, p.y);
+    lastX = p.x;
+    lastY = p.y;
+    compositeAll();
+  } else if (currentTool === 'blur' && isDrawing) {
+    performBlurStroke(p.x, p.y);
+    compositeAll();
+  } else if (currentTool === 'smudge' && isDrawing) {
+    performSmudgeStroke(lastX, lastY, p.x, p.y);
+    lastX = p.x;
+    lastY = p.y;
+    compositeAll();
+  } else if (currentTool === 'hand' && isPanning) {
+    panX = panOrigX + (e.clientX - panStartX);
+    panY = panOrigY + (e.clientY - panStartY);
+    applyTransform();
+  } else if (currentTool === 'select' && isSelecting) {
+    selection = { x: Math.min(selStart.x, p.x), y: Math.min(selStart.y, p.y), w: Math.abs(p.x - selStart.x), h: Math.abs(p.y - selStart.y) };
+    drawSelectionOverlay();
+  } else if (currentTool === 'shapes' && isSelecting) {
+    selection = { x: Math.min(selStart.x, p.x), y: Math.min(selStart.y, p.y), w: Math.abs(p.x - selStart.x), h: Math.abs(p.y - selStart.y) };
+    const ctx = overlayCanvas.getContext('2d');
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    drawShapeOnCanvas(ctx, selStart, p);
+  } else if (currentTool === 'lasso' && isSelecting) {
+    lassoPoints.push({ x: p.x, y: p.y });
+    drawLassoOverlay();
+  } else if (currentTool === 'transform' && isTransforming) {
+    const dx = (e.clientX - lastX) / zoom;
+    const dy = (e.clientY - lastY) / zoom;
+    transformState.x += dx;
+    transformState.y += dy;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    applyTransformState();
+    if (toolPanelOpenFor === 'transform') openToolPanel('transform');
+  }
+}
+
+function onPointerUp(e) {
+  activePointers.delete(e.pointerId);
+
+  if (activePointers.size < 2) {
+    initialPinchDist = null;
+    if (activePointers.size === 0) {
+      isMultiTouch = false;
+      isPanning = false;
+    }
+  }
+
+  if (isDrawing) { isDrawing = false; pushHistory(); persistDebounced(); }
+  if (currentTool === 'shapes' && isSelecting) {
+    isSelecting = false;
+    const p = getCanvasPoint(e);
+    const layer = layers[activeLayerIndex];
+    if (layer) {
+      drawShapeOnCanvas(layer.canvas.getContext('2d'), selStart, p);
+      compositeAll();
+      pushHistory();
+      persistDebounced();
+    }
+    clearOverlay();
+  }
+  if (currentTool === 'select' && isSelecting) { isSelecting = false; }
+  if (currentTool === 'lasso' && isSelecting) {
+    isSelecting = false;
+    finishLassoSelection();
+  }
+  if (isTransforming) {
+    isTransforming = false;
+    pushHistory();
+    persistDebounced();
+  }
+}
+
+function handleTouchStart(e) {
+  if (e.touches.length >= 2) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    initialPinchDist = dist;
+    initialZoom = zoom;
+    isPanning = true;
+    panStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    panStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    panOrigX = panX;
+    panOrigY = panY;
+  }
+}
+
+function handleTouchMove(e) {
+  if (e.touches.length >= 2 && initialPinchDist) {
+    e.preventDefault();
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const newZoom = Math.min(5, Math.max(0.1, initialZoom * (dist / initialPinchDist)));
+    setZoom(newZoom.toFixed(2));
+
+    const currentMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    panX = panOrigX + (currentMidX - panStartX);
+    panY = panOrigY + (currentMidY - panStartY);
+    applyTransform();
+  }
+}
+
+function handleTouchEnd(e) {
+  if (e.touches.length < 2) {
+    initialPinchDist = null;
+    isPanning = false;
+  }
+}
+
+function drawLassoOverlay() {
+  const ctx = overlayCanvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  if (lassoPoints.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = Math.max(1, 2 / zoom);
+  ctx.beginPath();
+  ctx.moveTo(lassoPoints[0].x, lassoPoints[0].y);
+  for (let i = 1; i < lassoPoints.length; i++) {
+    ctx.lineTo(lassoPoints[i].x, lassoPoints[i].y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function finishLassoSelection() {
+  if (lassoPoints.length < 3) return;
+  let minX = canvasWidth, minY = canvasHeight, maxX = 0, maxY = 0;
+  lassoPoints.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  });
+  selection = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+
+  selectionMaskCanvas = document.createElement('canvas');
+  selectionMaskCanvas.width = canvasWidth;
+  selectionMaskCanvas.height = canvasHeight;
+  const mCtx = selectionMaskCanvas.getContext('2d');
+  mCtx.fillStyle = '#ffffff';
+  mCtx.beginPath();
+  mCtx.moveTo(lassoPoints[0].x, lassoPoints[0].y);
+  for (let i = 1; i < lassoPoints.length; i++) {
+    mCtx.lineTo(lassoPoints[i].x, lassoPoints[i].y);
+  }
+  mCtx.closePath();
+  mCtx.fill();
+
+  drawSelectionOverlay();
+  showToast('Lazo completado');
+}
+
+function drawSymmetryGuides(ctx) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+  ctx.lineWidth = Math.max(1, 1.5 / zoom);
+  ctx.setLineDash([4 / zoom, 4 / zoom]);
+
+  const cx = canvasWidth / 2;
+  const cy = canvasHeight / 2;
+
+  if (symmetryMode === 'vertical') {
+    ctx.beginPath();
+    ctx.moveTo(cx, 0);
+    ctx.lineTo(cx, canvasHeight);
+    ctx.stroke();
+  } else if (symmetryMode === 'horizontal') {
+    ctx.beginPath();
+    ctx.moveTo(0, cy);
+    ctx.lineTo(canvasWidth, cy);
+    ctx.stroke();
+  } else if (symmetryMode === 'radial') {
+    const count = symmetryRadialSegments;
+    const step = (Math.PI * 2) / count;
+    const maxDim = Math.max(canvasWidth, canvasHeight);
+    for (let i = 0; i < count; i++) {
+      const ang = i * step;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(ang) * maxDim, cy + Math.sin(ang) * maxDim);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawSelectionOverlay() {
+  const ctx = overlayCanvas.getContext('2d');
+  ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  drawSymmetryGuides(ctx);
+
+  if (!selection) return;
+  ctx.save();
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = Math.max(1, 2 / zoom);
+  ctx.setLineDash([6 / zoom, 4 / zoom]);
+  ctx.lineDashOffset = -dashOffset;
+
+  if (selectionInverted) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.clearRect(selection.x, selection.y, selection.w, selection.h);
+  }
+
+  ctx.strokeRect(selection.x, selection.y, selection.w, selection.h);
+  ctx.restore();
+}
+
+function clearOverlay() {
+  overlayCanvas.getContext('2d').clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+}
+
+setInterval(() => {
+  dashOffset = (dashOffset + 1) % 10;
+  if (selection || symmetryMode !== 'none') drawSelectionOverlay();
+}, 100);
+
+function selectAll() {
+  selection = { x: 0, y: 0, w: canvasWidth, h: canvasHeight };
+  selectionInverted = false;
+  drawSelectionOverlay();
+}
+
+function clearSelectionOnly() {
+  selection = null;
+  selectionMaskCanvas = null;
+  selectionInverted = false;
+  clearOverlay();
+}
+
+function invertSelection() {
+  if (!selection) {
+    selectAll();
+    return;
+  }
+  selectionInverted = !selectionInverted;
+  drawSelectionOverlay();
+  showToast('Selección invertida');
+}
+
+function deleteSelectionContent() {
+  if (!selection || selection.w < 1 || selection.h < 1) { showToast('No hay selección activa'); return; }
+  const layer = layers[activeLayerIndex];
+  if (selectionInverted) {
+    const ctx = layer.canvas.getContext('2d');
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvasWidth;
+    tempCanvas.height = canvasHeight;
+    tempCanvas.getContext('2d').drawImage(layer.canvas, selection.x, selection.y, selection.w, selection.h, selection.x, selection.y, selection.w, selection.h);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.drawImage(tempCanvas, 0, 0);
+  } else {
+    layer.canvas.getContext('2d').clearRect(selection.x, selection.y, selection.w, selection.h);
+  }
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  showToast('Contenido eliminado');
+}
+
+function cropToSelection() {
+  if (!selection || selection.w < 2 || selection.h < 2) { showToast('No hay selección activa'); return; }
+  const sx = Math.round(selection.x);
+  const sy = Math.round(selection.y);
+  const sw = Math.round(selection.w);
+  const sh = Math.round(selection.h);
+  layers = layers.map(l => {
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext('2d').drawImage(l.canvas, -sx, -sy);
+    return { id: l.id, name: l.name, visible: l.visible, opacity: l.opacity, blendMode: l.blendMode, alphaLock: l.alphaLock, canvas: canvas };
+  });
+  canvasWidth = sw;
+  canvasHeight = sh;
+  selection = null;
+  setupCanvasSize();
+  compositeAll();
+  fitToScreen();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  clearOverlay();
+  showToast('Lienzo recortado');
+  closeToolPanel();
+}
+
+function flipLayerHorizontal() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const temp = document.createElement('canvas');
+  temp.width = canvasWidth;
+  temp.height = canvasHeight;
+  const tCtx = temp.getContext('2d');
+  tCtx.translate(canvasWidth, 0);
+  tCtx.scale(-1, 1);
+  tCtx.drawImage(layer.canvas, 0, 0);
+
+  const ctx = layer.canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.drawImage(temp, 0, 0);
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Capa volteada horizontalmente');
+}
+
+function flipLayerVertical() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const temp = document.createElement('canvas');
+  temp.width = canvasWidth;
+  temp.height = canvasHeight;
+  const tCtx = temp.getContext('2d');
+  tCtx.translate(0, canvasHeight);
+  tCtx.scale(1, -1);
+  tCtx.drawImage(layer.canvas, 0, 0);
+
+  const ctx = layer.canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.drawImage(temp, 0, 0);
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Capa volteada verticalmente');
+}
+
+function mergeDownLayer() {
+  if (activeLayerIndex <= 0) { showToast('No hay capa inferior'); return; }
+  const topLayer = layers[activeLayerIndex];
+  const bottomLayer = layers[activeLayerIndex - 1];
+
+  const bCtx = bottomLayer.canvas.getContext('2d');
+  bCtx.globalAlpha = topLayer.opacity / 100;
+  bCtx.globalCompositeOperation = topLayer.blendMode || 'source-over';
+  bCtx.drawImage(topLayer.canvas, 0, 0);
+  bCtx.globalAlpha = 1;
+  bCtx.globalCompositeOperation = 'source-over';
+
+  layers.splice(activeLayerIndex, 1);
+  activeLayerIndex--;
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Capas combinadas');
+}
+
+function flattenCanvas() {
+  if (layers.length <= 1) return;
+  const flatCanvas = document.createElement('canvas');
+  flatCanvas.width = canvasWidth;
+  flatCanvas.height = canvasHeight;
+  const ctx = flatCanvas.getContext('2d');
+
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    if (!l.visible) continue;
+    ctx.globalAlpha = l.opacity / 100;
+    ctx.globalCompositeOperation = l.blendMode || 'source-over';
+    ctx.drawImage(l.canvas, 0, 0);
+  }
+
+  const newLayer = {
+    id: 'layer_' + Date.now(),
+    name: 'Fondo Aplanado',
+    visible: true,
+    opacity: 100,
+    blendMode: 'source-over',
+    alphaLock: false,
+    canvas: flatCanvas
+  };
+
+  layers = [newLayer];
+  activeLayerIndex = 0;
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Lienzo aplanado');
+}
+
+function toggleAlphaLock(index) {
+  layers[index].alphaLock = !layers[index].alphaLock;
+  renderLayersPanel();
+  showToast(layers[index].alphaLock ? 'Bloqueo de Alfa activado' : 'Bloqueo de Alfa desactivado');
+}
+
+function setLayerBlendMode(index, mode) {
+  layers[index].blendMode = mode;
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+}
+
+function setSymmetryMode(mode) {
+  symmetryMode = mode;
+  ['none', 'vertical', 'horizontal', 'radial'].forEach(m => {
+    const btn = document.getElementById('symBtn-' + m);
+    if (btn) {
+      if (m === mode) {
+        btn.className = 'p-3 rounded-xl border border-app-border bg-emerald-500 text-black text-xs font-semibold flex items-center justify-center gap-2';
+      } else {
+        btn.className = 'p-3 rounded-xl border border-app-border bg-app-surface text-gray-300 text-xs font-semibold flex items-center justify-center gap-2';
+      }
+    }
+  });
+  drawSelectionOverlay();
+  showToast('Simetría: ' + mode);
+}
+
+function openSymmetryPanel() {
+  closeToolPanel();
+  closeLayersPanel();
+  closeColorPanel();
+  document.getElementById('symmetryPanelSheet').classList.remove('sheet-hidden');
+  lucide.createIcons();
+}
+
+function closeSymmetryPanel() {
+  document.getElementById('symmetryPanelSheet').classList.add('sheet-hidden');
+}
+
+function openAdjustmentsPanel() {
+  closeToolPanel();
+  closeLayersPanel();
+  closeColorPanel();
+  document.getElementById('adjustmentsPanelSheet').classList.remove('sheet-hidden');
+  lucide.createIcons();
+}
+
+function closeAdjustmentsPanel() {
+  document.getElementById('adjustmentsPanelSheet').classList.add('sheet-hidden');
+}
+
+function applyColorAdjustments() {
+  const b = parseInt(document.getElementById('adjBrightness').value);
+  const c = parseInt(document.getElementById('adjContrast').value);
+  const s = parseInt(document.getElementById('adjSaturation').value);
+  const h = parseInt(document.getElementById('adjHue').value);
+
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+
+  const contrastFactor = (259 * (c + 255)) / (255 * (259 - c));
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+
+    let r = data[i] + b;
+    let g = data[i + 1] + b;
+    let bl = data[i + 2] + b;
+
+    r = contrastFactor * (r - 128) + 128;
+    g = contrastFactor * (g - 128) + 128;
+    bl = contrastFactor * (bl - 128) + 128;
+
+    if (h !== 0 || s !== 0) {
+      let hsl = rgbToHsl(r, g, bl);
+      hsl.h = (hsl.h + h / 360 + 1) % 1;
+      hsl.s = Math.max(0, Math.min(1, hsl.s + s / 100));
+      const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+      r = rgb.r;
+      g = rgb.g;
+      bl = rgb.b;
+    }
+
+    data[i] = Math.max(0, Math.min(255, r));
+    data[i + 1] = Math.max(0, Math.min(255, g));
+    data[i + 2] = Math.max(0, Math.min(255, bl));
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  closeAdjustmentsPanel();
+  showToast('Ajustes aplicados');
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+}
+
+function openFiltersPanel() {
+  closeToolPanel();
+  closeLayersPanel();
+  closeColorPanel();
+  document.getElementById('filtersPanelSheet').classList.remove('sheet-hidden');
+  lucide.createIcons();
+}
+
+function closeFiltersPanel() {
+  document.getElementById('filtersPanelSheet').classList.add('sheet-hidden');
+}
+
+function applyFilterBlur() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const temp = document.createElement('canvas');
+  temp.width = canvasWidth;
+  temp.height = canvasHeight;
+  const tCtx = temp.getContext('2d');
+  tCtx.filter = 'blur(4px)';
+  tCtx.drawImage(layer.canvas, 0, 0);
+
+  const ctx = layer.canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  ctx.drawImage(temp, 0, 0);
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  closeFiltersPanel();
+  showToast('Desenfoque aplicado');
+}
+
+function applyFilterSharpen() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+  const copy = new Uint8ClampedArray(data);
+
+  const kernel = [
+    0, -1,  0,
+   -1,  5, -1,
+    0, -1,  0
+  ];
+
+  for (let y = 1; y < canvasHeight - 1; y++) {
+    for (let x = 1; x < canvasWidth - 1; x++) {
+      for (let c = 0; c < 3; c++) {
+        let val = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const idx = ((y + ky) * canvasWidth + (x + kx)) * 4 + c;
+            val += copy[idx] * kernel[(ky + 1) * 3 + (kx + 1)];
+          }
+        }
+        const targetIdx = (y * canvasWidth + x) * 4 + c;
+        data[targetIdx] = Math.max(0, Math.min(255, val));
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  closeFiltersPanel();
+  showToast('Enfoque aplicado');
+}
+
+function applyFilterInvert() {
+  const layer = layers[activeLayerIndex];
+  if (!layer) return;
+  const ctx = layer.canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    data[i] = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  compositeAll();
+  pushHistory();
+  persistDebounced();
+  closeFiltersPanel();
+  showToast('Colores invertidos');
+}
+
+function openShortcutsPanel() {
+  closeToolPanel();
+  closeLayersPanel();
+  closeColorPanel();
+  document.getElementById('shortcutsPanelSheet').classList.remove('sheet-hidden');
+  lucide.createIcons();
+}
+
+function closeShortcutsPanel() {
+  document.getElementById('shortcutsPanelSheet').classList.add('sheet-hidden');
+}
+
+function setToolSilent(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('bg-emerald-500', 'text-black'));
+  const btn = document.getElementById('tool-' + tool);
+  if (btn) btn.classList.add('bg-emerald-500', 'text-black');
+  const btnPC = document.getElementById('tool-' + tool + '-pc');
+  if (btnPC) btnPC.classList.add('bg-emerald-500', 'text-black');
+  overlayCanvas.style.cursor = tool === 'hand' ? 'grab' : (tool === 'pen' || tool === 'blur' || tool === 'smudge' ? 'crosshair' : 'default');
+}
+
+function setTool(tool) {
+  setToolSilent(tool);
+  openToolPanel(tool);
+}
+
+function openToolPanel(tool) {
+  closeLayersPanel();
+  closeColorPanel();
+  closeSymmetryPanel();
+  closeAdjustmentsPanel();
+  closeFiltersPanel();
+  closeShortcutsPanel();
+  if (toolPanelOpenFor === tool && tool !== 'transform') { closeToolPanel(); return; }
+  document.getElementById('toolPanelTitle').innerText = toolPanelTitles[tool] || 'Herramienta';
+  document.getElementById('toolPanelBody').innerHTML = generatePanelHTML(tool);
+  document.getElementById('toolPanelSheet').classList.remove('sheet-hidden');
+  toolPanelOpenFor = tool;
+  lucide.createIcons();
+}
+
+function closeToolPanel() {
+  document.getElementById('toolPanelSheet').classList.add('sheet-hidden');
+  toolPanelOpenFor = null;
+}
+
+function generatePanelHTML(tool) {
+  if (tool === 'pen') {
+    return '<div class="space-y-4">' +
+      '<div class="flex items-center justify-center py-1">' +
+      '<div id="brushPreview" style="width:' + Math.min(brush.size, 60) + 'px;height:' + Math.min(brush.size, 60) + 'px;background:' + brush.color + ';opacity:' + (brush.opacity / 100) + ';border-radius:9999px;"></div>' +
+      '</div>' +
+      '<div class="grid grid-cols-3 gap-2">' +
+      '<button onclick="setBrushType(\'pencil\')" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'pencil' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="pencil" class="w-4 h-4"></i>Lápiz</button>' +
+      '<button onclick="setBrushType(\'marker\')" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'marker' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="paintbrush" class="w-4 h-4"></i>Marcador</button>' +
+      '<button onclick="setBrushType(\'airbrush\')" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'airbrush' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="spray-can" class="w-4 h-4"></i>Aerógrafo</button>' +
+      '<button onclick="setBrushType(\'calligraphy\')" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'calligraphy' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="pen-tool" class="w-4 h-4"></i>Pluma</button>' +
+      '<button onclick="setBrushType(\'eraser\')" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'eraser' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="eraser" class="w-4 h-4"></i>Borrador</button>' +
+      '<button onclick="document.getElementById(\'customBrushInput\').click()" class="py-2 rounded-xl text-[10px] font-semibold flex flex-col items-center gap-1 ' + (brush.type === 'custom' ? 'bg-emerald-500 text-black' : 'bg-app-surface text-gray-300') + '"><i data-lucide="image" class="w-4 h-4"></i>Personalizado</button>' +
+      '</div>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Tamaño</span><span id="brushSizeVal">' + brush.size + 'px</span></div>' +
+      '<input type="range" min="1" max="150" value="' + brush.size + '" oninput="brush.size=parseInt(this.value);document.getElementById(\'brushSizeVal\').innerText=this.value+\'px\';updateBrushPreview();" class="w-full">' +
+      '</div>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Opacidad</span><span id="brushOpacityVal">' + brush.opacity + '%</span></div>' +
+      '<input type="range" min="1" max="100" value="' + brush.opacity + '" oninput="brush.opacity=parseInt(this.value);document.getElementById(\'brushOpacityVal\').innerText=this.value+\'%\';updateBrushPreview();" class="w-full">' +
+      '</div>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Dureza</span><span id="brushHardnessVal">' + brush.hardness + '%</span></div>' +
+      '<input type="range" min="0" max="100" value="' + brush.hardness + '" oninput="brush.hardness=parseInt(this.value);document.getElementById(\'brushHardnessVal\').innerText=this.value+\'%\';" class="w-full">' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'blur' || tool === 'smudge') {
+    return '<div class="space-y-4">' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Tamaño</span><span id="brushSizeVal">' + brush.size + 'px</span></div>' +
+      '<input type="range" min="1" max="150" value="' + brush.size + '" oninput="brush.size=parseInt(this.value);document.getElementById(\'brushSizeVal\').innerText=this.value+\'px\';" class="w-full">' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'select' || tool === 'lasso' || tool === 'wand') {
+    return '<div class="space-y-3">' +
+      '<p class="text-[11px] text-gray-400">Herramientas de selección e interacción de área.</p>' +
+      '<div class="grid grid-cols-2 gap-2">' +
+      '<button onclick="selectAll()" class="bg-app-surface border border-app-border rounded-xl py-2.5 text-xs font-semibold text-gray-200">Seleccionar Todo</button>' +
+      '<button onclick="clearSelectionOnly()" class="bg-app-surface border border-app-border rounded-xl py-2.5 text-xs font-semibold text-gray-200">Deseleccionar</button>' +
+      '<button onclick="invertSelection()" class="bg-app-surface border border-app-border rounded-xl py-2.5 text-xs font-semibold text-gray-200">Invertir Selección</button>' +
+      '<button onclick="deleteSelectionContent()" class="bg-red-500/10 border border-red-500/30 rounded-xl py-2.5 text-xs font-semibold text-red-400">Eliminar Contenido</button>' +
+      '<button onclick="cropToSelection()" class="col-span-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl py-2.5 text-xs font-semibold text-emerald-400">Recortar Lienzo</button>' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'hand') {
+    return '<div class="space-y-3">' +
+      '<p class="text-[11px] text-gray-400">Arrastra sobre el lienzo para mover la vista.</p>' +
+      '<div class="grid grid-cols-2 gap-2">' +
+      '<button onclick="fitToScreen()" class="bg-app-surface border border-app-border rounded-xl py-2.5 text-xs font-semibold text-gray-200">Ajustar a Pantalla</button>' +
+      '<button onclick="resetView()" class="bg-app-surface border border-app-border rounded-xl py-2.5 text-xs font-semibold text-gray-200">Restablecer</button>' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'image') {
+    return '<div class="space-y-3">' +
+      '<p class="text-[11px] text-gray-400">La imagen se añadirá como una nueva capa centrada en el lienzo.</p>' +
+      '<button onclick="triggerImageUpload()" class="w-full bg-emerald-500 text-black font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"><i data-lucide="upload" class="w-4 h-4"></i>Subir Imagen</button>' +
+      '</div>';
+  }
+  if (tool === 'eyedropper') {
+    return '<div class="space-y-3"><p class="text-[11px] text-gray-400">Toca cualquier punto del lienzo para seleccionar su color.</p></div>';
+  }
+  if (tool === 'bucket') {
+    return '<div class="space-y-3">' +
+      '<p class="text-[11px] text-gray-400">Toca en una zona para rellenarla del color actual.</p>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Tolerancia de Color</span><span id="magicTolVal">' + magicTolerance + '</span></div>' +
+      '<input type="range" min="0" max="128" value="' + magicTolerance + '" oninput="magicTolerance=parseInt(this.value);document.getElementById(\'magicTolVal\').innerText=this.value;" class="w-full">' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'text') {
+    return '<div class="space-y-3">' +
+      '<div>' +
+      '<label class="block text-[10px] text-gray-400 mb-1">Texto a Insertar</label>' +
+      '<input type="text" id="textInputVal" value="' + textContent + '" oninput="textContent=this.value" placeholder="Escribe algo..." class="w-full bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50">' +
+      '</div>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Tamaño de Fuente</span><span id="textSizeVal">' + fontSize + 'px</span></div>' +
+      '<input type="range" min="10" max="200" value="' + fontSize + '" oninput="fontSize=parseInt(this.value);document.getElementById(\'textSizeVal\').innerText=this.value+\'px\';" class="w-full">' +
+      '</div>' +
+      '<p class="text-[10px] text-gray-500">Toca en el lienzo para estampar el texto.</p>' +
+      '</div>';
+  }
+  if (tool === 'shapes') {
+    return '<div class="space-y-3">' +
+      '<div class="grid grid-cols-4 gap-2">' +
+      '<button onclick="shapeType=\'line\'" class="p-2 rounded-xl border border-app-border bg-app-surface text-xs font-semibold text-gray-200 flex flex-col items-center gap-1"><i data-lucide="minus" class="w-4 h-4"></i>Línea</button>' +
+      '<button onclick="shapeType=\'rect\'" class="p-2 rounded-xl border border-app-border bg-app-surface text-xs font-semibold text-gray-200 flex flex-col items-center gap-1"><i data-lucide="square" class="w-4 h-4"></i>Rectángulo</button>' +
+      '<button onclick="shapeType=\'ellipse\'" class="p-2 rounded-xl border border-app-border bg-app-surface text-xs font-semibold text-gray-200 flex flex-col items-center gap-1"><i data-lucide="circle" class="w-4 h-4"></i>Elipse</button>' +
+      '<button onclick="shapeType=\'polygon\'" class="p-2 rounded-xl border border-app-border bg-app-surface text-xs font-semibold text-gray-200 flex flex-col items-center gap-1"><i data-lucide="hexagon" class="w-4 h-4"></i>Polígono</button>' +
+      '</div>' +
+      '<div class="flex items-center gap-2">' +
+      '<input type="checkbox" id="shapeFillCheck" ' + (shapeFill ? 'checked' : '') + ' onchange="shapeFill=this.checked" class="rounded bg-app-surface border-app-border text-emerald-500 focus:ring-0">' +
+      '<label for="shapeFillCheck" class="text-xs text-gray-300">Rellenar Forma</label>' +
+      '</div>' +
+      '</div>';
+  }
+  if (tool === 'transform') {
+    return '<div class="space-y-3">' +
+      '<p class="text-[11px] text-gray-400">Arrastra para mover la capa actual.</p>' +
+      '<div>' +
+      '<div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Rotación</span><span>' + transformState.rotation + '°</span></div>' +
+      '<input type="range" min="-180" max="180" value="' + transformState.rotation + '" oninput="transformState.rotation=parseInt(this.value);applyTransformState();openToolPanel(\'transform\');" class="w-full">' +
+      '</div>' +
+      '<button onclick="initTransform();applyTransformState();" class="w-full bg-app-surface border border-app-border text-xs text-gray-300 py-2 rounded-xl">Restablecer Transformación</button>' +
+      '</div>';
+  }
+  return '';
+}
+
+function updateBrushPreview() {
+  const prev = document.getElementById('brushPreview');
+  if (prev) {
+    prev.style.width = Math.min(brush.size, 60) + 'px';
+    prev.style.height = Math.min(brush.size, 60) + 'px';
+    prev.style.background = brush.color;
+    prev.style.opacity = brush.opacity / 100;
+  }
+}
+
+function setBrushType(type) {
+  brush.type = type;
+  if (toolPanelOpenFor === 'pen') {
+    document.getElementById('toolPanelBody').innerHTML = generatePanelHTML('pen');
+    lucide.createIcons();
+  }
+}
+
+function quickToggleEraser() {
+  if (brush.type === 'eraser') {
+    brush.type = 'pencil';
+    showToast('Pincel activado');
+  } else {
+    brush.type = 'eraser';
+    showToast('Borrador activado');
+  }
+  if (toolPanelOpenFor === 'pen') {
+    document.getElementById('toolPanelBody').innerHTML = generatePanelHTML('pen');
+    lucide.createIcons();
+  }
+}
+
+function openLayersPanel() {
+  closeToolPanel();
+  closeColorPanel();
+  closeSymmetryPanel();
+  closeAdjustmentsPanel();
+  closeFiltersPanel();
+  closeShortcutsPanel();
+  document.getElementById('layersPanelSheet').classList.remove('sheet-hidden');
+  renderLayersPanel();
+  lucide.createIcons();
+}
+
+function closeLayersPanel() {
+  document.getElementById('layersPanelSheet').classList.add('sheet-hidden');
+}
+
+function renderLayersPanel() {
+  const badge = document.getElementById('layerCountBadge');
+  if (badge) badge.innerText = layers.length;
+
+  const renderTarget = (listEl) => {
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const l = layers[i];
+      const isActive = i === activeLayerIndex;
+      const item = document.createElement('div');
+      item.className = `p-2 rounded-xl border ${isActive ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-app-border bg-app-surface'} flex items-center justify-between gap-2`;
+
+      const thumb = document.createElement('canvas');
+      thumb.width = 36;
+      thumb.height = 36;
+      thumb.className = 'rounded bg-[#05070a] border border-app-border flex-shrink-0';
+      const tCtx = thumb.getContext('2d');
+      tCtx.drawImage(l.canvas, 0, 0, 36, 36);
+
+      item.appendChild(thumb);
+
+      const info = document.createElement('div');
+      info.className = 'flex-1 min-w-0 flex flex-col justify-center';
+      info.onclick = () => { activeLayerIndex = i; renderLayersPanel(); };
+
+      const title = document.createElement('span');
+      title.className = `text-xs font-semibold truncate ${isActive ? 'text-emerald-400' : 'text-gray-200'}`;
+      title.innerText = l.name;
+      info.appendChild(title);
+
+      item.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex items-center gap-1 flex-shrink-0';
+
+      const alphaBtn = document.createElement('button');
+      alphaBtn.className = `p-1 rounded-lg border border-app-border ${l.alphaLock ? 'bg-emerald-500 text-black' : 'text-gray-400 bg-app-bg'}`;
+      alphaBtn.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5"></i>';
+      alphaBtn.onclick = (e) => { e.stopPropagation(); toggleAlphaLock(i); };
+      actions.appendChild(alphaBtn);
+
+      const visBtn = document.createElement('button');
+      visBtn.className = `p-1 rounded-lg border border-app-border ${l.visible ? 'text-gray-200 bg-app-surface' : 'text-gray-600 bg-app-bg'}`;
+      visBtn.innerHTML = `<i data-lucide="${l.visible ? 'eye' : 'eye-off'}" class="w-3.5 h-3.5"></i>`;
+      visBtn.onclick = (e) => { e.stopPropagation(); toggleLayerVisibility(i); };
+      actions.appendChild(visBtn);
+
+      if (layers.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'p-1 rounded-lg border border-app-border text-red-400 bg-app-surface';
+        delBtn.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteLayer(i); };
+        actions.appendChild(delBtn);
+      }
+
+      item.appendChild(actions);
+      listEl.appendChild(item);
+    }
+  };
+
+  renderTarget(document.getElementById('layersList'));
+  renderTarget(document.getElementById('layersListPC'));
+  lucide.createIcons();
+}
+
+function toggleLayerVisibility(index) {
+  layers[index].visible = !layers[index].visible;
+  compositeAll();
+  renderLayersPanel();
+  persistDebounced();
+}
+
+function addLayer() {
+  const newL = createLayer('Capa ' + (layers.length + 1));
+  layers.push(newL);
+  activeLayerIndex = layers.length - 1;
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Nueva capa creada');
+}
+
+function deleteLayer(index) {
+  if (layers.length <= 1) return;
+  layers.splice(index, 1);
+  if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
+  compositeAll();
+  renderLayersPanel();
+  pushHistory();
+  persistDebounced();
+  showToast('Capa eliminada');
+}
+
+function setLayerOpacity(index, val) {
+  if (!layers[index]) return;
+  layers[index].opacity = parseInt(val);
+  const ov = document.getElementById('opacityValue');
+  if (ov) ov.innerText = val;
+  const ovpc = document.getElementById('opacityValuePC');
+  if (ovpc) ovpc.innerText = val;
+  compositeAll();
+}
+
+function setLayerOpacityCommit() {
+  pushHistory();
+  persistDebounced();
+}
+
+function openColorPanel() {
+  closeToolPanel();
+  closeLayersPanel();
+  closeSymmetryPanel();
+  closeAdjustmentsPanel();
+  closeFiltersPanel();
+  closeShortcutsPanel();
+  renderColorPanel();
+  document.getElementById('colorPanelSheet').classList.remove('sheet-hidden');
+  lucide.createIcons();
+}
+
+function closeColorPanel() {
+  document.getElementById('colorPanelSheet').classList.add('sheet-hidden');
+}
+
+function renderColorPanel() {
+  const body = document.getElementById('colorPanelBody');
+  if (!body) return;
+  let html = '<div class="space-y-4">' +
+    '<div class="flex items-center gap-3">' +
+    '<input type="color" value="' + brush.color + '" onchange="setBrushColor(this.value)" class="w-12 h-12 rounded-xl border border-app-border bg-transparent cursor-pointer">' +
+    '<input type="text" value="' + brush.color + '" onchange="setBrushColor(this.value)" class="flex-1 bg-app-surface border border-app-border rounded-xl px-3 py-2 text-xs font-mono text-white uppercase focus:outline-none focus:border-emerald-500/50">' +
+    '</div>' +
+    '<div>' +
+    '<span class="text-[10px] text-gray-400 block mb-2">Paleta Rápida</span>' +
+    '<div class="grid grid-cols-8 gap-2">';
+  PALETTE.forEach(c => {
+    html += '<button onclick="setBrushColor(\'' + c + '\')" style="background:' + c + '" class="w-full aspect-square rounded-lg border border-app-border/40 active:scale-95 transition"></button>';
+  });
+  html += '</div></div></div>';
+  body.innerHTML = html;
+}
+
+function setBrushColor(hex) {
+  brush.color = hex;
+  const btn = document.getElementById('colorSwatchBtn');
+  if (btn) btn.style.background = hex;
+  const btnHeader = document.getElementById('colorSwatchBtnHeader');
+  if (btnHeader) btnHeader.style.background = hex;
+  updateBrushPreview();
+}
+
+function triggerImageUpload() {
+  document.getElementById('imageFileInput').click();
+}
+
+function handleImageUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const newL = createLayer(file.name.split('.')[0] || 'Imagen');
+      const ctx = newL.canvas.getContext('2d');
+      const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (canvasWidth - w) / 2, (canvasHeight - h) / 2, w, h);
+      layers.push(newL);
+      activeLayerIndex = layers.length - 1;
+      compositeAll();
+      renderLayersPanel();
+      pushHistory();
+      persistDebounced();
+      showToast('Imagen insertada');
+      closeToolPanel();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function pushHistory() {
+  if (historyIndex < history.length - 1) {
+    history = history.slice(0, historyIndex + 1);
+  }
+  const snap = layers.map(l => ({
+    id: l.id,
+    name: l.name,
+    visible: l.visible,
+    opacity: l.opacity,
+    blendMode: l.blendMode,
+    alphaLock: l.alphaLock,
+    dataURL: l.canvas.toDataURL()
+  }));
+  history.push(snap);
+  if (history.length > 20) history.shift();
+  else historyIndex++;
+  updateUndoRedoUI();
+}
+
+function updateUndoRedoUI() {
+  const u = document.getElementById('undoBtn');
+  const r = document.getElementById('redoBtn');
+  const um = document.getElementById('undoBtnMobile');
+  const rm = document.getElementById('redoBtnMobile');
+
+  if (historyIndex > 0) {
+    if (u) u.classList.remove('opacity-30');
+    if (um) um.classList.remove('opacity-30');
+  } else {
+    if (u) u.classList.add('opacity-30');
+    if (um) um.classList.add('opacity-30');
+  }
+
+  if (historyIndex < history.length - 1) {
+    if (r) r.classList.remove('opacity-30');
+    if (rm) rm.classList.remove('opacity-30');
+  } else {
+    if (r) r.classList.add('opacity-30');
+    if (rm) rm.classList.add('opacity-30');
+  }
+}
+
+function undo() {
+  if (historyIndex <= 0) return;
+  historyIndex--;
+  restoreHistorySnap(history[historyIndex]);
+}
+
+function redo() {
+  if (historyIndex >= history.length - 1) return;
+  historyIndex++;
+  restoreHistorySnap(history[historyIndex]);
+}
+
+function restoreHistorySnap(snap) {
+  Promise.all(snap.map(loadLayerFromData)).then(loadedLayers => {
+    layers = loadedLayers;
+    if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
+    compositeAll();
+    renderLayersPanel();
+    updateUndoRedoUI();
+    persistDebounced();
+  });
+}
+
+function persistDebounced() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => { manualSave(true); }, 1000);
+}
+
+function manualSave(silent = false) {
+  if (!projectId) return;
+  const snap = layers.map(l => ({
+    id: l.id,
+    name: l.name,
+    visible: l.visible,
+    opacity: l.opacity,
+    blendMode: l.blendMode,
+    alphaLock: l.alphaLock,
+    dataURL: l.canvas.toDataURL()
+  }));
+
+  const record = {
+    id: projectId,
+    name: projectMeta ? projectMeta.name : 'Sin título',
+    width: canvasWidth,
+    height: canvasHeight,
+    updatedAt: Date.now(),
+    layers: snap,
+    backgroundConfig: {
+      type: backgroundConfig.type,
+      color: backgroundConfig.color,
+      imageData: backgroundConfig.image ? backgroundConfig.image.src : null
+    }
+  };
+
+  dbPut(record).then(() => {
+    if (!silent) showToast('Proyecto guardado');
+  }).catch(() => {
+    if (!silent) showToast('Error al guardar');
+  });
+}
+
+function exportGB() {
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = canvasWidth;
+  exportCanvas.height = canvasHeight;
+  const ctx = exportCanvas.getContext('2d');
+
+  if (backgroundConfig.type === 'color') {
+    ctx.fillStyle = backgroundConfig.color || '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  } else if (backgroundConfig.type === 'image' && backgroundConfig.image) {
+    const img = backgroundConfig.image;
+    const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.drawImage(img, (canvasWidth - w) / 2, (canvasHeight - h) / 2, w, h);
+  }
+
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    if (!l.visible) continue;
+    ctx.globalAlpha = l.opacity / 100;
+    ctx.globalCompositeOperation = l.blendMode || 'source-over';
+    ctx.drawImage(l.canvas, 0, 0);
+  }
+
+  const link = document.createElement('a');
+  link.download = (projectMeta ? projectMeta.name : 'proyecto') + '.png';
+  link.href = exportCanvas.toDataURL('image/png');
+  link.click();
+  showToast('Imagen exportada');
+}
+
+function initKeybindings() {
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'z' || e.key === 'Z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if (e.key === 'y' || e.key === 'Y') { e.preventDefault(); redo(); }
+      else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); selectAll(); }
+      else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); clearSelectionOnly(); }
+      else if (e.key === 's' || e.key === 'S') { e.preventDefault(); manualSave(); }
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === 'b') setTool('pen');
+    else if (k === 'e') quickToggleEraser();
+    else if (k === 'i') setTool('eyedropper');
+    else if (k === 'g') setTool('bucket');
+    else if (k === 'h' || e.code === 'Space') setTool('hand');
+    else if (k === 't') setTool('transform');
+  });
+}
+
+function initApp() {
+  mainCanvas = document.getElementById('mainCanvas');
+  overlayCanvas = document.getElementById('overlayCanvas');
+  backgroundCanvas = document.getElementById('backgroundCanvas');
+  viewportEl = document.getElementById('canvasViewport');
+  stageEl = document.getElementById('canvasStage');
+
+  const params = new URLSearchParams(location.search);
+  projectId = params.get('id') || 'demo_' + Date.now();
+
+  dbGet(projectId).then(record => {
+    if (record) {
+      projectMeta = { name: record.name };
+      document.getElementById('projectNameLabel').innerText = record.name;
+      canvasWidth = record.width || 1920;
+      canvasHeight = record.height || 1080;
+      setupCanvasSize();
+
+      if (record.backgroundConfig) {
+        backgroundConfig.type = record.backgroundConfig.type || 'transparent';
+        backgroundConfig.color = record.backgroundConfig.color || '#ffffff';
+        if (record.backgroundConfig.imageData) {
+          const img = new Image();
+          img.onload = () => {
+            backgroundConfig.image = img;
+            updateBackgroundCanvas();
+          };
+          img.src = record.backgroundConfig.imageData;
+        } else {
+          updateBackgroundCanvas();
+        }
+      }
+
+      if (record.layers && record.layers.length > 0) {
+        Promise.all(record.layers.map(loadLayerFromData)).then(loaded => {
+          layers = loaded;
+          activeLayerIndex = 0;
+          compositeAll();
+          renderLayersPanel();
+          fitToScreen();
+          pushHistory();
+        });
+      } else {
+        layers = [createLayer('Capa 1')];
+        activeLayerIndex = 0;
+        compositeAll();
+        renderLayersPanel();
+        fitToScreen();
+        pushHistory();
+      }
+    } else {
+      projectMeta = { name: 'Nuevo Proyecto' };
+      document.getElementById('projectNameLabel').innerText = 'Nuevo Proyecto';
+      setupCanvasSize();
+      layers = [createLayer('Capa 1')];
+      activeLayerIndex = 0;
+      compositeAll();
+      renderLayersPanel();
+      fitToScreen();
+      pushHistory();
+    }
+  }).catch(() => {
+    projectMeta = { name: 'Nuevo Proyecto' };
+    setupCanvasSize();
+    layers = [createLayer('Capa 1')];
+    activeLayerIndex = 0;
+    compositeAll();
+    renderLayersPanel();
+    fitToScreen();
+    pushHistory();
+  });
+
+  overlayCanvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  viewportEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+  viewportEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+  viewportEl.addEventListener('touchend', handleTouchEnd);
+
+  window.addEventListener('resize', () => { fitToScreen(); });
+
+  initKeybindings();
+  lucide.createIcons();
+}
+
+window.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
